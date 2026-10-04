@@ -1593,7 +1593,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-001412";
+const VER = "20261005-001957";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1770,16 +1770,21 @@ function pinPad(onDone){
   const wrap = el("div",{class:"pin"});
   const dots = el("div",{class:"pindots"});
   const inp  = el("input",{type:"tel",inputmode:"numeric",autocomplete:"off",
-    maxlength:"6",class:"pininput","aria-label":"PIN"});
+    maxlength:"6",class:"pininput","aria-label":"PIN",
+    name:"pin"+Math.random().toString(36).slice(2,9)});  // zmienna nazwa: przegladarka nie przywroci wpisu
   const boxes = [];
   for(let i=0;i<6;i++){ const b = el("span",{class:"pinbox"}); boxes.push(b); dots.append(b); }
   const paint = ()=>{ const n = inp.value.length;
     boxes.forEach((b,i)=>{ b.className = "pinbox" + (i<n ? " on" : (i===n ? " cur" : "")); }); };
+  let gotowe = false;            // pierwsze chwile: przegladarka moze sama wstawic stary wpis
   inp.addEventListener("input",()=>{
     inp.value = inp.value.replace(/[^0-9]/g,"").slice(0,6);
+    if(!gotowe){ inp.value = ""; paint(); return; }
     paint();
     if(inp.value.length===6) onDone(inp.value);
   });
+  requestAnimationFrame(()=>{ inp.value = ""; paint();
+    setTimeout(()=>{ gotowe = true; }, 150); });
   inp.addEventListener("focus",paint);
   wrap.append(dots,inp);
   wrap.pin   = ()=>inp.value;
