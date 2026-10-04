@@ -1259,8 +1259,15 @@ function syncTransfer(){
         miejsce.append(el("div",{style:"font-size:26px;letter-spacing:.22em;color:#111;"
           +"font-variant-numeric:tabular-nums"}, kod));
         qrRysuj(qr, url);
-        opis.textContent = "Kod działa 15 minut. Aparat telefonu rozpozna adres — otwórz go, "
-          + "a planer poprosi o te sześć cyfr.";
+        const kopiuj = el("button",{class:"btn",onclick:async()=>{
+          try{ await navigator.clipboard.writeText(url); kopiuj.textContent = "skopiowany"; }
+          catch(e){ const pole = el("textarea",{rows:3,style:"width:100%;font-size:11px"});
+            pole.value = url; miejsce.append(pole); pole.select(); }
+          setTimeout(()=>{ kopiuj.textContent = "Kopiuj adres"; }, 2500);
+        }},"Kopiuj adres");
+        miejsce.append(kopiuj);
+        opis.textContent = "Kod działa 15 minut. Jeśli aparat otwiera adres w innej przeglądarce "
+          + "niż ta, w której masz planer — skopiuj adres i wklej go tam, gdzie trzeba.";
         setTimeout(schowaj, 15*60000);
       }},"Pokaż kod"),
       el("button",{class:"ghost",onclick:schowaj},"ukryj")),
@@ -1593,7 +1600,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-002413";
+const VER = "20261005-003113";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
