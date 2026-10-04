@@ -55,6 +55,33 @@ img{max-width:100%}
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
 }
+/* skórka „System” — wygląd aplikacji macOS; włączana w Legendzie, nie nadpisuje papieru */
+:root[data-skin="mac"]{
+  --desk:#f2f2f6; --paper:#ffffff; --paper-2:#f7f7f9; --side:#eaeaef;
+  --grid:transparent; --grid-5:transparent;
+  --fg:#1d1d1f; --fg-2:#5f5f64; --fg-3:#8c8c91;
+  --line:#d9d9de; --line-2:#ebebef;
+  --pink:#0a6cff; --pink-2:#0a58d0; --pink-soft:#e9f0ff;
+  --ink:#30506a; --dziennik:#3a3a3f;
+  --disp:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root[data-skin="mac"]:not([data-theme="light"]){
+  --desk:#1c1c1e; --paper:#2a2a2d; --paper-2:#313135; --side:#232326;
+  --fg:#f2f2f7; --fg-2:#a3a3a8; --fg-3:#7c7c82;
+  --line:#3b3b3f; --line-2:#333337;
+  --pink:#0a84ff; --pink-2:#64aaff; --pink-soft:#1b2c45;
+  --ink:#9ec4e8; --dziennik:#d8d8dd;
+  color-scheme:dark;
+}}
+:root[data-skin="mac"][data-theme="dark"]{
+  --desk:#1c1c1e; --paper:#2a2a2d; --paper-2:#313135; --side:#232326;
+  --fg:#f2f2f7; --fg-2:#a3a3a8; --fg-3:#7c7c82;
+  --line:#3b3b3f; --line-2:#333337;
+  --pink:#0a84ff; --pink-2:#64aaff; --pink-soft:#1b2c45;
+  --ink:#9ec4e8; --dziennik:#d8d8dd;
+  color-scheme:dark;
+}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--desk);color:var(--fg);font-family:var(--ui);font-size:14.5px;
@@ -208,6 +235,23 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
     font-family:var(--disp);font-size:12.5px;padding:5px 4px;border-radius:7px;white-space:nowrap}
   #tabsbot button[aria-current="page"]{background:var(--pink);color:#fff}
 }
+/* skórka „System”: płaskie karty, bez kratki, krój systemowy */
+:root[data-skin="mac"] .scroll{background-image:none}
+:root[data-skin="mac"] .sec{border-radius:9px;box-shadow:0 1px 2px rgba(0,0,0,.055);
+  padding:13px 16px 15px;gap:9px}
+:root[data-skin="mac"] .sec>h3{font-size:11px;font-weight:600;letter-spacing:.045em;
+  color:var(--fg-3);border-bottom:0;padding-bottom:0}
+:root[data-skin="mac"] header.bar{padding-top:10px;padding-bottom:10px}
+:root[data-skin="mac"] header.bar h2{font-size:17px;font-weight:600;letter-spacing:-.01em}
+:root[data-skin="mac"] #side{background:var(--side)}
+:root[data-skin="mac"] #side h1{font-size:11px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--fg-3);margin-bottom:10px}
+:root[data-skin="mac"] .nav{font-size:13.5px;border-radius:6px;padding:5px 10px}
+:root[data-skin="mac"] .btn{border-radius:6px;background:var(--paper);font-size:12.5px;
+  box-shadow:0 1px 1px rgba(0,0,0,.035)}
+:root[data-skin="mac"] label.fld{letter-spacing:.02em;font-size:11px;text-transform:none}
+:root[data-skin="mac"] #tabsbot button{font-size:11.5px}
+:root[data-skin="mac"] .pinbox{border-radius:7px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .pin{position:relative;display:flex;justify-content:center;padding:10px 0 4px}
@@ -313,6 +357,13 @@ const S = {
   cal:{ev:[],err:null,on:false}, subs:[], ready:false
 };
 S.month = S.date.slice(0,7);
+const SKIN = {
+  get(){ try{ return localStorage.getItem("planer.skin")==="mac" ? "mac" : "papier"; }
+         catch(e){ return "papier"; } },
+  set(v){ try{ localStorage.setItem("planer.skin",v); }catch(e){}
+          document.documentElement.dataset.skin = v; }
+};
+SKIN.set(SKIN.get());
 const el = (t,p={},...k)=>{const e=document.createElement(t);
   for(const[a,v] of Object.entries(p)){
     if(a==="class")e.className=v; else if(a==="html")e.innerHTML=v;
@@ -944,7 +995,16 @@ function vLegenda(){
     el("div",{class:"note"},"Sailor Pro Gear Slim · Taccia Budounezu — dziennik"),
     el("div",{class:"note"},"Uni One Sesame Grey — linie i osie"));
 
-  return {L:[c1,c2,c3,c7], R:[c4,c5,c6], even:true};
+  const c8=sec("Wygląd");
+  const skins=[["papier","Papier","kratka, szeryfy, kolory planera"],
+               ["mac","System","płaskie karty, krój systemowy, bez kratki"]];
+  skins.forEach(([k,n,d])=>c8.append(el("div",{class:"row",style:"align-items:flex-start"},
+    el("button",{class:"btn"+(SKIN.get()===k?" on":""),style:"min-width:74px",
+      onclick:()=>{SKIN.set(k);render()}},n),
+    el("span",{class:"note",style:"flex:1;min-width:0"},d))));
+  c8.append(el("p",{class:"note"},"Wybór zostaje na tym urządzeniu. Treść i logika są te same w obu."));
+
+  return {L:[c1,c2,c3,c7], R:[c8,c4,c5,c6], even:true};
 }
 
 /* ---------- powłoka ---------- */
