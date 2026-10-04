@@ -965,7 +965,7 @@ function render(){
 
 /* ---------- magazyn danych: prywatne repozytorium GitHub ---------- */
 const CFG_KEY = "planer.cfg";
-const GH = {owner:"KlaudiaDobrolinska", repo:"planer", token:"", branch:"main", gcal:""};
+const GH = {owner:"KlaudiaDobrolinska", repo:"planer", token:"", branch:"main", gcal:"411634246290-g7h76aahc5cv48n46f7kd0nero6ntdri.apps.googleusercontent.com"};
 const FILES = {};            // ścieżka pliku -> {sha, data}
 const SUBS  = [];            // subskrypcje w pamięci
 const DIRTY = new Set();     // pliki do zapisania
@@ -996,7 +996,7 @@ function cfgLoad(){
   if(m.owner) GH.owner = m.owner;
   if(m.repo)  GH.repo  = m.repo;
   if(m.branch)GH.branch= m.branch;
-  GH.gcal  = m.gcal || "";
+  if(m.gcal) GH.gcal = m.gcal;
   GH.token = m.token || "";            // ze starej, niezaszyfrowanej wersji
   VAULT = (m.ct && m.iv && m.salt) ? {ct:m.ct, iv:m.iv, salt:m.salt} : null;
   return !!VAULT;
@@ -1163,7 +1163,7 @@ function setupScreen(msg){
     msg ? el("p",{class:"err"},msg) : null,
     el("label",{class:"fld"},"Token GitHub",inTok),
     el("label",{class:"fld"},"PIN do planera",inPin),
-    el("label",{class:"fld"},"Identyfikator Google (kalendarz)",inCal),
+    el("label",{class:"fld"},"Identyfikator Google (kalendarz) — już wpisany",inCal),
     adv,
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:connect},"Połącz"),
