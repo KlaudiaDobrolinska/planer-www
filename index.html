@@ -1045,6 +1045,10 @@ function buildBar(){
     bar.append(el("h2",{},{cele:"Cele",listy:"Listy",legenda:"Legenda"}[S.view]),
       el("span",{class:"spacer"}));
   }
+  if(S.newver){
+    bar.append(el("button",{class:"btn on",title:"Wyszła nowa wersja planera",
+      onclick:()=>location.reload()},"Nowa wersja — odśwież"));
+  }
   if(S.db){
     bar.append(el("button",{class:"btn icon",id:"sync",title:"Stan zapisu",
       onclick:()=>{ DIRTY.size ? flush() : pullAll(); }},"zapisane"),
@@ -1084,6 +1088,18 @@ const DIRTY = new Set();     // pliki do zapisania
 let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
 
 const TOK_KEY = "planer.gtok";
+const VER = "20261004-232913";
+async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
+  try{
+    const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
+    if(!r.ok) return;
+    const v = (await r.text()).trim();
+    if(v && v !== VER && !S.newver){ S.newver = true; render(); }
+  }catch(e){}
+}
+setInterval(checkVer, 600000);
+setTimeout(checkVer, 4000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) checkVer(); });
 let VAULT = null, AESKEY = null, SALT = null;
 const ENC = new TextEncoder(), DEC = new TextDecoder();
 const toB = a => btoa(String.fromCharCode(...new Uint8Array(a)));
