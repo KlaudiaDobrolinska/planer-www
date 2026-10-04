@@ -337,7 +337,7 @@ function ensureMonth(m){
 function resub(){
   if(S.db) ensureMonth(S.month);
   S.subs.forEach(u=>{try{u()}catch(e){}}); S.subs=[];
-  if(S.mcp) watchCal(S.mcp);
+  calLoad();
   if(!S.db) return;
   const d=S.date, w=isoWeek(d), m=S.month;
   const lo=[m+"-01", monday(d)].sort()[0];
@@ -353,29 +353,67 @@ function resub(){
      s=>{S.mdays={}; s.docs.forEach(x=>S.mdays[x.id]=x.data()); render()});
 }
 
-/* ---------- kalendarz Google ---------- */
-let calUnsub=null, calRange="";
-function watchCal(mcp){
-  const a=S.month+"-01", d=parse(a); d.setMonth(d.getMonth()+1); d.setDate(7);
-  const from=addD(a,-7), to=key(d), rng=from+to;
-  if(rng===calRange) return; calRange=rng;
-  if(calUnsub){try{calUnsub()}catch(e){}}
-  calUnsub = mcp.watchTool("Google Calendar","list_events",
-    {startTime:from+"T00:00:00+01:00", endTime:to+"T00:00:00+01:00",
-     timeZone:"Europe/Warsaw", orderBy:"startTime", pageSize:250},
-    ev=>{
-      if(ev.type==="data"){
-        const p=ev.result&&ev.result.payload;
-        S.cal.ev=(p&&p.events)||[]; S.cal.err=null; S.cal.on=true;
-      }else{
-        const c=ev.error&&ev.error.code;
-        if(["needs_reauth","server_not_connected","not_in_manifest","blocked_by_policy",
-            "approval_required","consent_required","selection_required"].includes(c)){
-          S.cal.ev=[]; S.cal.err=c;
-        }else S.cal.err=S.cal.ev.length?null:c;
-      }
-      render();
-    },{refetchInterval:300000});
+let calRange = "";
+/* ---------- kalendarz Google: logowanie w przeglądarce ---------- */
+const GSCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+let gTok = null, gExp = 0, calAt = 0;
+function gisLoad(){
+  return new Promise((ok,no)=>{
+    if(window.google && google.accounts && google.accounts.oauth2) return ok();
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+    s.onload = ()=>ok(); s.onerror = ()=>no({code:"offline"});
+    document.head.append(s);
+  });
+}
+function gToken(interactive){
+  if(gTok && Date.now() < gExp-60000) return Promise.resolve(gTok);
+  if(!GH.gcal) return Promise.reject({code:"no_client"});
+  return gisLoad().then(()=>new Promise((ok,no)=>{
+    let done = false;
+    const cl = google.accounts.oauth2.initTokenClient({
+      client_id: GH.gcal, scope: GSCOPE,
+      callback: r=>{ done = true;
+        if(r && r.access_token){ gTok = r.access_token;
+          gExp = Date.now() + ((r.expires_in||3600)*1000); ok(gTok); }
+        else no({code:"denied"}); },
+      error_callback: e=>{ done = true; no({code:(e&&e.type==="popup_closed")?"denied":"connect"}); }
+    });
+    try{ cl.requestAccessToken({prompt: interactive ? "" : "none"}); }
+    catch(e){ no({code:"connect"}); }
+    setTimeout(()=>{ if(!done) no({code:"connect"}); }, interactive ? 120000 : 8000);
+  }));
+}
+async function calLoad(interactive){
+  const a = S.month+"-01", d = parse(a); d.setMonth(d.getMonth()+1); d.setDate(7);
+  const from = addD(a,-7), to = key(d), rng = from+to;
+  if(!interactive && rng===calRange && Date.now()-calAt < 300000) return;
+  calRange = rng;
+  let tok;
+  try{ tok = await gToken(interactive); }
+  catch(e){ S.cal.on=false; S.cal.err=(e&&e.code)||"connect"; render(); return; }
+  const u = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
+  u.searchParams.set("timeMin", from+"T00:00:00Z");
+  u.searchParams.set("timeMax", to+"T00:00:00Z");
+  u.searchParams.set("singleEvents","true");
+  u.searchParams.set("orderBy","startTime");
+  u.searchParams.set("maxResults","250");
+  u.searchParams.set("timeZone","Europe/Warsaw");
+  try{
+    const r = await fetch(u, {headers:{Authorization:"Bearer "+tok}});
+    if(r.status===401 || r.status===403){ gTok=null; S.cal.err="connect"; S.cal.on=false; render(); return; }
+    if(!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    S.cal.ev = j.items || []; S.cal.err = null; S.cal.on = true; calAt = Date.now();
+  }catch(e){ S.cal.err = S.cal.ev.length ? null : "offline"; }
+  render();
+}
+function calNote(box){
+  if(!S.cal.err) return;
+  box.append(el("p",{class:"err"}, CALERR[S.cal.err] || "Nie udało się wczytać kalendarza."));
+  if(S.cal.err!=="no_client")
+    box.append(el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>calLoad(true)},"Połącz Kalendarz Google")));
 }
 function calFor(dateStr){
   return S.cal.ev.filter(e=>{
@@ -389,13 +427,10 @@ function calFor(dateStr){
    .sort((a,b)=>a.t.localeCompare(b.t));
 }
 const CALERR = {
-  needs_reauth:"Połącz ponownie Kalendarz Google w ustawieniach Claude → Połączenia.",
-  server_not_connected:"Dodaj Kalendarz Google w ustawieniach Claude → Połączenia.",
-  selection_required:"Masz kilka kalendarzy o tej nazwie — wybierz jeden w Claude.",
-  not_in_manifest:"Kalendarz nie jest dopuszczony dla tej strony.",
-  blocked_by_policy:"Kalendarz zablokowany regulaminem organizacji.",
-  approval_required:"Kalendarz wymaga zgody administratora.",
-  consent_required:"Zezwól tej stronie na Kalendarz Google i odśwież stronę."
+  no_client:"Kalendarz nie jest jeszcze podłączony. Wpisz identyfikator Google w ustawieniach (⚙).",
+  connect:"Kliknij, żeby zalogować się do Kalendarza Google.",
+  denied:"Logowanie przerwane. Spróbuj jeszcze raz.",
+  offline:"Brak połączenia z Kalendarzem Google."
 };
 
 /* ---------- elementy wspólne ---------- */
@@ -491,7 +526,8 @@ function vDzis(){
     textRow(D.must,"Jedna rzecz, po której dzień jest udany",v=>saveDay(d,{must:v})));
 
   const ce=calFor(d), showCal=S.cal.on||S.cal.err, secCal=sec("Kalendarz Google");
-  if(S.cal.err) secCal.append(el("p",{class:"err"},CALERR[S.cal.err]||"Nie udało się wczytać kalendarza."));
+  calNote(secCal);
+  if(S.cal.err){ }
   else if(!ce.length) secCal.append(el("p",{class:"note"},S.cal.on?"Brak wpisów na ten dzień.":"Wczytywanie…"));
   else ce.forEach(e=>secCal.append(el("div",{class:"row",style:"gap:6px"},
     el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums;min-width:36px"},e.t||"cały"),
@@ -599,7 +635,7 @@ function vMiesiac(){
     g.append(c);
   }
   const s=sec(MONTHN[m-1]+" "+y,g);
-  if(S.cal.err) s.append(el("p",{class:"err"},CALERR[S.cal.err]||"Nie udało się wczytać kalendarza."));
+  calNote(s);
   s.append(el("p",{class:"note"},"Terminy pochodzą z Kalendarza Google. Typ dnia i „musi się udać” — z dniówek."));
   return {W:[s]};
 }
@@ -842,7 +878,7 @@ function render(){
 
 /* ---------- magazyn danych: prywatne repozytorium GitHub ---------- */
 const CFG_KEY = "planer.cfg";
-const GH = {owner:"KlaudiaDobrolinska", repo:"planer", token:"", branch:"main"};
+const GH = {owner:"KlaudiaDobrolinska", repo:"planer", token:"", branch:"main", gcal:""};
 const FILES = {};            // ścieżka pliku -> {sha, data}
 const SUBS  = [];            // subskrypcje w pamięci
 const DIRTY = new Set();     // pliki do zapisania
@@ -873,6 +909,7 @@ function cfgLoad(){
   if(m.owner) GH.owner = m.owner;
   if(m.repo)  GH.repo  = m.repo;
   if(m.branch)GH.branch= m.branch;
+  GH.gcal  = m.gcal || "";
   GH.token = m.token || "";            // ze starej, niezaszyfrowanej wersji
   VAULT = (m.ct && m.iv && m.salt) ? {ct:m.ct, iv:m.iv, salt:m.salt} : null;
   return !!VAULT;
@@ -881,7 +918,7 @@ async function cfgSave(){
   if(!PIN || !GH.token) return;
   const v = await seal(PIN, GH.token);
   try{ localStorage.setItem(CFG_KEY, JSON.stringify(
-    {owner:GH.owner, repo:GH.repo, branch:GH.branch, ...v})); }catch(e){}
+    {owner:GH.owner, repo:GH.repo, branch:GH.branch, gcal:GH.gcal, ...v})); }catch(e){}
   VAULT = v;
 }
 
@@ -1012,6 +1049,8 @@ function setupScreen(msg){
   const inPin = el("input",{type:"password",inputmode:"numeric",autocomplete:"new-password",
     placeholder:"co najmniej 4 znaki"});
   const inRepo = el("input",{type:"text",value:GH.owner+"/"+GH.repo});
+  const inCal = el("input",{type:"text",value:GH.gcal||"",placeholder:"…apps.googleusercontent.com",
+    autocomplete:"off",spellcheck:"false"});
   const adv = el("label",{class:"fld",hidden:true},"Repozytorium",inRepo);
   const out = el("p",{class:"note"});
   const connect = async()=>{
@@ -1019,6 +1058,7 @@ function setupScreen(msg){
     if(m.length!==2||!m[0]||!m[1]){ out.textContent="Repozytorium w formacie uzytkownik/nazwa."; return; }
     GH.owner=m[0]; GH.repo=m[1]; GH.token=(inTok.value||"").trim();
     if(!GH.token){ out.textContent="Wklej token."; return; }
+    GH.gcal=(inCal.value||"").trim();
     const pin=(inPin.value||"").trim();
     if(pin.length<4){ out.textContent="Ustaw PIN — co najmniej 4 znaki."; return; }
     PIN=pin;
@@ -1036,6 +1076,7 @@ function setupScreen(msg){
     msg ? el("p",{class:"err"},msg) : null,
     el("label",{class:"fld"},"Token GitHub",inTok),
     el("label",{class:"fld"},"PIN do planera",inPin),
+    el("label",{class:"fld"},"Identyfikator Google (kalendarz)",inCal),
     adv,
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:connect},"Połącz"),
@@ -1053,6 +1094,7 @@ function unlockScreen(msg){
   const inPin = el("input",{type:"password",inputmode:"numeric",autocomplete:"off",placeholder:"••••"});
   const out = el("p",{class:"note"});
   const go = async()=>{
+    GH.gcal=(inCal.value||"").trim();
     const pin=(inPin.value||"").trim(); if(!pin) return;
     out.textContent="Otwieram…";
     let tok=null;
@@ -1101,6 +1143,7 @@ render();
   setupScreen(GH.token ? "Token jest teraz szyfrowany — ustaw PIN do planera." : "");
 })();
 setInterval(pullAll, 60000);
+setInterval(()=>{ if(S.db) calLoad(); }, 300000);
 let HID = 0;                       // po 15 min w tle planer zamyka się sam
 document.addEventListener("visibilitychange", ()=>{
   if(document.hidden){ HID = Date.now(); return; }
