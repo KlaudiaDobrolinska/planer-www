@@ -1234,7 +1234,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261004-234916";
+const VER = "20261004-235018";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1550,10 +1550,6 @@ render();
   if(cfgLoad()){ unlockScreen(); return; }
   setupScreen(GH.token ? "Token jest teraz szyfrowany — ustaw PIN do planera." : "");
 })();
-window.addEventListener("online", ()=>{ S.offline=false; status(); flush().then(pullAll); });
-window.addEventListener("offline", ()=>{ S.offline=true; status(); });
-if("serviceWorker" in navigator)
-  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 window.addEventListener("online", ()=>{ S.offline=false; status(); flush().then(pullAll); });
 window.addEventListener("offline", ()=>{ S.offline=true; status(); });
 if("serviceWorker" in navigator)
