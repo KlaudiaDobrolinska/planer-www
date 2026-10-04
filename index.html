@@ -30,6 +30,7 @@ img{max-width:100%}
   --pink:#bd7f90; --pink-2:#a86a7c; --pink-soft:#f7e9ec;
   --ink:#4a6a5b; --dziennik:#6b5a6e;
   --s:#8e5bb5; --g:#4a7fa8; --t:#c85f20; --z:#8a6248; --o:#68742a; --r:#b8283a;
+  --nawyk:#c0798b;                 /* antyczny róż, Staedtler Triplus 26 */
   --sc5:#148a72; --sc4:#68742a; --sc3:#cf9420; --sc2:#c85f20; --sc1:#b8283a;
   --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
   --disp:"Newsreader","Iowan Old Style",Palatino,Georgia,serif;
@@ -43,6 +44,7 @@ img{max-width:100%}
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
   --s:#b388d6; --g:#78aad4; --t:#ec8c4e; --z:#b08a6c; --o:#9aa84a; --r:#e2616f;
+  --nawyk:#d894a6;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
 }}
@@ -54,6 +56,7 @@ img{max-width:100%}
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
   --s:#b388d6; --g:#78aad4; --t:#ec8c4e; --z:#b08a6c; --o:#9aa84a; --r:#e2616f;
+  --nawyk:#d894a6;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
 }
@@ -213,15 +216,19 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .tb th.lft{text-align:left}
 .tb td{border-top:1px solid var(--line-2);padding:0;text-align:center}
 .tb td.lft{text-align:left;padding:0 3px;color:var(--fg-2);white-space:nowrap;line-height:26px}
-.tb.siatka{table-layout:auto;width:auto}
-.tb.siatka .lft{width:auto;white-space:nowrap;padding-right:10px}
-.tb.siatka th{padding:0 0 4px;min-width:22px}
+.tb.siatka{table-layout:fixed;width:100%}
+.tb.siatka .lft{width:112px;white-space:nowrap;padding-right:8px;overflow:hidden;
+  text-overflow:ellipsis;font-size:11.5px}
+.tb.siatka th{padding:0 0 3px;font-size:9px}
 .tb.siatka td{border-top:0;padding:1px}
 .tb.siatka th.wk,.tb.siatka td.wk{background:var(--paper-2)}
-.cell.kw{width:21px;height:21px;min-width:21px;border:1px solid var(--line);border-radius:4px;
-  background:transparent;display:inline-block;padding:0;border-left:1px solid var(--line)}
-.cell.kw.s1{background:var(--sc5);border-color:transparent}
-.cell.kw.s2{background:linear-gradient(135deg,var(--sc5) 0 50%,transparent 50% 100%)}
+.cell.kw{width:100%;min-width:0;height:auto;aspect-ratio:1;border:1px solid var(--line);border-radius:3px;
+  background:transparent;display:block;padding:0;border-left:1px solid var(--line)}
+.legkw{width:17px;height:17px;min-height:17px;flex:0 0 17px;aspect-ratio:auto;border-radius:4px}
+@media (max-width:900px){ .tb.siatka th:not(.co5){color:transparent} }
+@media (max-width:720px){ .tb.siatka .lft{width:74px;font-size:10.5px} .tb.siatka th{font-size:8px} }
+.cell.kw.s1{background:var(--nawyk);border-color:transparent}
+.cell.kw.s2{background:linear-gradient(135deg,var(--nawyk) 0 50%,transparent 50% 100%)}
 .cell.kw.s0{background:var(--line-2);border-color:var(--line)}
 .cell.kw.s0::after{content:"";position:absolute;inset:0;margin:auto;width:9px;height:1.5px;
   background:var(--fg-3);border-radius:1px}
@@ -233,6 +240,7 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .sw{display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:-2px}
 .tb tr.wk td{background:var(--paper-2)}
 .scrollx{overflow-x:auto}
+:root[data-widok="trackery"] .wrap{max-width:1180px}
 
 /* miesiąc */
 .mg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line-2);
@@ -1390,7 +1398,8 @@ function vTrackery(){
   const h1=el("tr",{},el("th",{class:"lft"},""));
   for(let i=1;i<=n;i++){
     const ds=S.month+"-"+pad(i);
-    h1.append(el("th",{class:dowIdx(ds)>=5?"wk":"",title:i+" "+DOW[dowIdx(ds)]},String(i)));
+    h1.append(el("th",{class:(dowIdx(ds)>=5?"wk ":"")+((i===1||i%5===0)?"co5":""),
+      title:i+" "+DOW[dowIdx(ds)]},String(i)));
   }
   t1.append(el("thead",{},h1));
   const b1=el("tbody");
@@ -1416,15 +1425,15 @@ function vTrackery(){
   t1.append(b1);
   c1.append(el("div",{class:"scrollx"},t1),
     el("div",{class:"row",style:"gap:12px"},
-      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw s1",style:"pointer-events:none"}),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw s1",style:"pointer-events:none"}),
         el("span",{class:"note"},"zrobione")),
-      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw s2",style:"pointer-events:none"}),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw s2",style:"pointer-events:none"}),
         el("span",{class:"note"},"wersja minimum")),
-      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw s0",style:"pointer-events:none"}),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw s0",style:"pointer-events:none"}),
         el("span",{class:"note"},"nie")),
-      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw s3",style:"pointer-events:none"}),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw s3",style:"pointer-events:none"}),
         el("span",{class:"note"},"nie dotyczy")),
-      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw",style:"pointer-events:none"}),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw",style:"pointer-events:none"}),
         el("span",{class:"note"},"pusta — nic nie zapisano"))),
     el("p",{class:"note"},"Klikanie przechodzi po kolei: zrobione → minimum → nie → nie dotyczy → pusta."));
   edytorNawykow(c1);
@@ -1434,7 +1443,8 @@ function vTrackery(){
   const h2=el("tr",{},el("th",{class:"lft"},""));
   for(let i=1;i<=n;i++){
     const ds=S.month+"-"+pad(i);
-    h2.append(el("th",{class:dowIdx(ds)>=5?"wk":"",title:i+" "+DOW[dowIdx(ds)]},String(i)));
+    h2.append(el("th",{class:(dowIdx(ds)>=5?"wk ":"")+((i===1||i%5===0)?"co5":""),
+      title:i+" "+DOW[dowIdx(ds)]},String(i)));
   }
   t2.append(el("thead",{},h2));
   const b2=el("tbody");
@@ -1704,28 +1714,36 @@ function edytorObszarow(box){
     +"Kolor jest ten sam w trybie jasnym i ciemnym."));
 }
 function edytorNawykow(box){
+  const panel = el("div",{hidden:true,style:"display:flex;flex-direction:column;gap:8px"});
   HABITS.forEach((h,i)=>{
-    const sk=el("input",{type:"text",value:h[0],maxlength:"3",
-      style:"width:54px;flex:0 0 54px;text-align:center"});
     const nm=el("input",{type:"text",value:h[1],
-      style:"width:auto;flex:1 1 150px;min-width:0"});
-    sk.addEventListener("change",()=>{HABITS[i][0]=(sk.value||"?").trim().slice(0,3); cfgZapisz(); render();});
+      style:"width:auto;flex:1 1 170px;min-width:0"});
     nm.addEventListener("change",()=>{HABITS[i][1]=duza(nm.value); cfgZapisz(); render();});
-    box.append(el("div",{class:"row"},sk,nm,
+    panel.append(el("div",{class:"row"},nm,
+      el("button",{class:"ghost",title:"Wyżej",onclick:()=>{
+        if(i===0) return;
+        const a=HABITS[i-1]; HABITS[i-1]=HABITS[i]; HABITS[i]=a; cfgZapisz(); render();
+      }},"⌃"),
       el("button",{class:"ghost",title:"Usuń nawyk",onclick:()=>{
         if(HABITS.length<2) return;
         if(!confirm("Usunąć nawyk „"+h[1]+"”? Zapisane kratki zostaną w danych, ale znikną z tabeli.")) return;
         HABITS.splice(i,1); cfgZapisz(); render();
       }},"✕")));
   });
-  box.append(el("div",{class:"row"},
-    el("button",{class:"btn",onclick:()=>{ HABITS.push(["Nw","Nowy nawyk"]); cfgZapisz(); render(); }},
-      "Dodaj nawyk"),
+  panel.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      HABITS.push(["h"+uid(),"Nowy nawyk"]); cfgZapisz(); render();
+    }},"Dodaj nawyk"),
     el("button",{class:"ghost",onclick:()=>{
       if(!confirm("Przywrócić nawyki fabryczne?")) return;
       HABITS.length=0; FABR.HABITS.forEach(x=>HABITS.push([...x])); cfgZapisz(); render();
     }},"przywróć fabryczne")));
-  box.append(el("p",{class:"note"},"Skrót to nagłówek kolumny — najwyżej trzy znaki."));
+  const przycisk = el("button",{class:"ghost"},"▸ edytuj nawyki");
+  przycisk.addEventListener("click",()=>{
+    panel.hidden = !panel.hidden;
+    przycisk.textContent = (panel.hidden ? "▸" : "▾") + " edytuj nawyki";
+  });
+  box.append(el("div",{class:"row"},przycisk), panel);
 }
 function edytorKotwic(box){
   const DNINAZ=["pon","wt","śr","czw","pt","sob","nd"];
@@ -2176,6 +2194,7 @@ function grow(){
   });
 }
 function render(){
+  document.documentElement.dataset.widok = S.view;
   buildTabs(); buildBar(); buildFab();
   const v=document.getElementById("view");
   if(S.ready && !S.db){          // zamknięty planer: zawsze PIN albo ustawienia, nic poza tym
@@ -2227,7 +2246,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-013410";
+const VER = "20261005-013646";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
