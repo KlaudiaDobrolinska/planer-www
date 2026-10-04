@@ -222,7 +222,10 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
   background:transparent;display:inline-block;padding:0;border-left:1px solid var(--line)}
 .cell.kw.s1{background:var(--sc5);border-color:transparent}
 .cell.kw.s2{background:linear-gradient(135deg,var(--sc5) 0 50%,transparent 50% 100%)}
-.cell.kw.s0{background:transparent}
+.cell.kw.s0{background:var(--line-2);border-color:var(--line)}
+.cell.kw.s0::after{content:"";position:absolute;inset:0;margin:auto;width:9px;height:1.5px;
+  background:var(--fg-3);border-radius:1px}
+.cell.kw{position:relative}
 .cell.kw.s3{background:repeating-linear-gradient(135deg,var(--line) 0 1.5px,transparent 1.5px 5px)}
 .cell{width:100%;height:26px;border:0;background:transparent;border-left:1px solid var(--line-2);
   font-size:12.5px;padding:0;color:var(--fg)}
@@ -1420,7 +1423,10 @@ function vTrackery(){
       el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw s0",style:"pointer-events:none"}),
         el("span",{class:"note"},"nie")),
       el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw s3",style:"pointer-events:none"}),
-        el("span",{class:"note"},"nie dotyczy"))));
+        el("span",{class:"note"},"nie dotyczy")),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw",style:"pointer-events:none"}),
+        el("span",{class:"note"},"pusta — nic nie zapisano"))),
+    el("p",{class:"note"},"Klikanie przechodzi po kolei: zrobione → minimum → nie → nie dotyczy → pusta."));
   edytorNawykow(c1);
 
   const c2=sec("Samopoczucie i cykl");
@@ -2221,7 +2227,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-012657";
+const VER = "20261005-013410";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
