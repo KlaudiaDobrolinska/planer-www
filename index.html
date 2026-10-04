@@ -1545,10 +1545,10 @@ function render(){
   buildTabs(); buildBar(); buildFab();
   const v=document.getElementById("view");
   if(S.ready && !S.db){          // zamknięty planer: zawsze PIN albo ustawienia, nic poza tym
-    const locked = !!VAULT && !AESKEY;
-    if(!v.querySelector(locked ? ".lock" : ".setup")){
+    if(v.querySelector(".lock")) return;       // trwa wpisywanie PIN-u albo przenoszenie — nie ruszamy
+    if(!v.querySelector(".setup")){
       v.replaceChildren();
-      locked ? unlockScreen() : setupScreen();
+      (!!VAULT && !AESKEY) ? unlockScreen() : setupScreen();
     }
     return;
   }
@@ -1593,7 +1593,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-001957";
+const VER = "20261005-002136";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
