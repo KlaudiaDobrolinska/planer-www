@@ -354,9 +354,12 @@ function resub(){
 }
 
 let calRange = "";
-/* ---------- kalendarz Google: logowanie w przeglądarce ---------- */
-const GSCOPE = "https://www.googleapis.com/auth/calendar.readonly";
-let gTok = null, gExp = 0, calAt = 0;
+/* ---------- kalendarz Google: logowanie w przeglądarce, odczyt i zapis ---------- */
+const GSCOPE = "https://www.googleapis.com/auth/calendar.events";
+const GAPI   = "https://www.googleapis.com/calendar/v3";
+const GTZ    = "Europe/Warsaw";
+let gTok = null, gExp = 0, gTimer = null, calAt = 0, calEdit = null;
+
 function gisLoad(){
   return new Promise((ok,no)=>{
     if(window.google && google.accounts && google.accounts.oauth2) return ok();
@@ -366,6 +369,13 @@ function gisLoad(){
     document.head.append(s);
   });
 }
+function gKeep(){                       // odnawia zgodę po cichu, zanim wygaśnie
+  clearTimeout(gTimer);
+  gTimer = setTimeout(()=>{
+    gTok = null;
+    gToken(false).then(()=>calLoad(false,true)).catch(()=>{ render(); });
+  }, Math.max(60000, gExp - Date.now() - 300000));
+}
 function gToken(interactive){
   if(gTok && Date.now() < gExp-60000) return Promise.resolve(gTok);
   if(!GH.gcal) return Promise.reject({code:"no_client"});
@@ -374,33 +384,43 @@ function gToken(interactive){
     const cl = google.accounts.oauth2.initTokenClient({
       client_id: GH.gcal, scope: GSCOPE,
       callback: r=>{ done = true;
-        if(r && r.access_token){ gTok = r.access_token;
-          gExp = Date.now() + ((r.expires_in||3600)*1000); ok(gTok); }
-        else no({code:"denied"}); },
-      error_callback: e=>{ done = true; no({code:(e&&e.type==="popup_closed")?"denied":"connect"}); }
+        if(r && r.access_token){
+          gTok = r.access_token; gExp = Date.now() + ((r.expires_in||3600)*1000);
+          gKeep(); ok(gTok);
+        } else no({code:"denied"}); },
+      error_callback: e=>{ done = true;
+        no({code:(e && e.type==="popup_closed") ? "denied" : "connect"}); }
     });
     try{ cl.requestAccessToken({prompt: interactive ? "" : "none"}); }
     catch(e){ no({code:"connect"}); }
     setTimeout(()=>{ if(!done) no({code:"connect"}); }, interactive ? 120000 : 8000);
   }));
 }
-async function calLoad(interactive){
+async function calApi(path, opts){
+  let tok;
+  try{ tok = await gToken(false); }catch(e){ tok = await gToken(true); }
+  const h = Object.assign({Authorization:"Bearer "+tok, "Content-Type":"application/json"},
+                          (opts && opts.headers) || {});
+  const r = await fetch(GAPI+path, Object.assign({}, opts, {headers:h}));
+  if(r.status===401 || r.status===403){ gTok=null; throw {code:"connect"}; }
+  if(!r.ok){
+    let m=""; try{ m=(await r.json()).error.message; }catch(e){}
+    throw {code:"api", message: m || ("Błąd "+r.status)};
+  }
+  return r.status===204 ? null : r.json();
+}
+async function calLoad(interactive, force){
   const a = S.month+"-01", d = parse(a); d.setMonth(d.getMonth()+1); d.setDate(7);
   const from = addD(a,-7), to = key(d), rng = from+to;
-  if(!interactive && rng===calRange && Date.now()-calAt < 300000) return;
+  if(!force && !interactive && rng===calRange && Date.now()-calAt < 300000) return;
   calRange = rng;
   let tok;
-  try{ tok = await gToken(interactive); }
+  try{ tok = await gToken(!!interactive); }
   catch(e){ S.cal.on=false; S.cal.err=(e&&e.code)||"connect"; render(); return; }
-  const u = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
-  u.searchParams.set("timeMin", from+"T00:00:00Z");
-  u.searchParams.set("timeMax", to+"T00:00:00Z");
-  u.searchParams.set("singleEvents","true");
-  u.searchParams.set("orderBy","startTime");
-  u.searchParams.set("maxResults","250");
-  u.searchParams.set("timeZone","Europe/Warsaw");
+  const q = "?timeMin="+from+"T00%3A00%3A00Z&timeMax="+to+"T00%3A00%3A00Z"
+          + "&singleEvents=true&orderBy=startTime&maxResults=250&timeZone="+encodeURIComponent(GTZ);
   try{
-    const r = await fetch(u, {headers:{Authorization:"Bearer "+tok}});
+    const r = await fetch(GAPI+"/calendars/primary/events"+q, {headers:{Authorization:"Bearer "+tok}});
     if(r.status===401 || r.status===403){ gTok=null; S.cal.err="connect"; S.cal.on=false; render(); return; }
     if(!r.ok) throw new Error(r.status);
     const j = await r.json();
@@ -408,12 +428,72 @@ async function calLoad(interactive){
   }catch(e){ S.cal.err = S.cal.ev.length ? null : "offline"; }
   render();
 }
+function evBody(f){
+  const b = {summary: f.title || "(bez nazwy)"};
+  if(f.allDay){ b.start={date:f.date}; b.end={date:addD(f.date,1)}; }
+  else{
+    b.start = {dateTime:f.date+"T"+f.from+":00", timeZone:GTZ};
+    b.end   = {dateTime:(f.to<=f.from ? addD(f.date,1) : f.date)+"T"+f.to+":00", timeZone:GTZ};
+  }
+  return b;
+}
+async function calSave(f){
+  if(!f.title){ S.cal.msg="Wpisz nazwę."; render(); return; }
+  S.cal.msg = "Zapisuję…"; render();
+  try{
+    const b = JSON.stringify(evBody(f));
+    if(f.id) await calApi("/calendars/primary/events/"+encodeURIComponent(f.id),{method:"PATCH",body:b});
+    else     await calApi("/calendars/primary/events",{method:"POST",body:b});
+    calEdit = null; S.cal.msg = null; await calLoad(false,true);
+  }catch(e){ S.cal.msg = e.message || CALERR[e.code] || "Nie udało się zapisać."; render(); }
+}
+async function calDel(id){
+  S.cal.msg = "Usuwam…"; render();
+  try{
+    await calApi("/calendars/primary/events/"+encodeURIComponent(id),{method:"DELETE"});
+    calEdit = null; S.cal.msg = null; await calLoad(false,true);
+  }catch(e){ S.cal.msg = e.message || CALERR[e.code] || "Nie udało się usunąć."; render(); }
+}
+function calRow(e, d){
+  return el("button",{class:"task",onclick:()=>{
+      calEdit = {id:e.id, date:d, title:e.s, allDay:e.allDay,
+                 from: e.st ? e.st.slice(11,16) : "09:00",
+                 to:   e.en ? e.en.slice(11,16) : "10:00"};
+      S.cal.msg = null; render(); }},
+    el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums;"
+      +"min-width:42px;display:inline-block"}, e.t || "cały"),
+    el("span",{}, e.s));
+}
+function calForm(box, d){
+  const f = calEdit;
+  const inT = el("input",{type:"text",value:f.title||"",placeholder:"Nazwa wpisu"});
+  const inA = el("input",{type:"checkbox"}); inA.checked = !!f.allDay;
+  const inF = el("input",{type:"time",value:f.from||"09:00"});
+  const inE = el("input",{type:"time",value:f.to||"10:00"});
+  const times = el("div",{class:"row tight"},
+    el("span",{class:"note"},"od"),inF,el("span",{class:"note"},"do"),inE);
+  times.hidden = !!f.allDay;
+  inA.addEventListener("change",()=>{ times.hidden = inA.checked; });
+  inT.addEventListener("keydown",e=>{ if(e.key==="Enter") calSave(grab()); });
+  const grab = ()=>({id:f.id, date:d, title:(inT.value||"").trim(), allDay:inA.checked,
+                     from:inF.value||"09:00", to:inE.value||"10:00"});
+  box.append(
+    el("label",{class:"fld"}, f.id ? "Zmień wpis" : "Nowy wpis", inT),
+    el("label",{class:"row",style:"gap:6px"}, inA, el("span",{class:"note"},"cały dzień")),
+    times,
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>calSave(grab())}, f.id ? "Zapisz" : "Dodaj"),
+      f.id ? el("button",{class:"ghost",onclick:()=>{
+        if(confirm("Usunąć „"+(f.title||"wpis")+"” z Kalendarza Google?")) calDel(f.id); }},"usuń") : null,
+      el("button",{class:"ghost",onclick:()=>{ calEdit=null; S.cal.msg=null; render(); }},"anuluj")));
+  setTimeout(()=>{ if(!f.id) inT.focus(); },30);
+}
 function calNote(box){
   if(!S.cal.err) return;
   box.append(el("p",{class:"err"}, CALERR[S.cal.err] || "Nie udało się wczytać kalendarza."));
   if(S.cal.err!=="no_client")
     box.append(el("div",{class:"row"},
-      el("button",{class:"btn",onclick:()=>calLoad(true)},"Połącz Kalendarz Google")));
+      el("button",{class:"btn",onclick:()=>calLoad(true,true)},"Połącz Kalendarz Google")));
 }
 function calFor(dateStr){
   return S.cal.ev.filter(e=>{
@@ -423,7 +503,9 @@ function calFor(dateStr){
     const sd=s.slice(0,10);
     if(e.start&&e.start.date) return dateStr>=sd && dateStr<en.slice(0,10);
     return sd===dateStr;
-  }).map(e=>({t:(e.start&&e.start.dateTime)?e.start.dateTime.slice(11,16):"",s:e.summary||"(bez nazwy)"}))
+  }).map(e=>({id:e.id, t:(e.start&&e.start.dateTime)?e.start.dateTime.slice(11,16):"",
+      s:e.summary||"(bez nazwy)", allDay:!!(e.start&&e.start.date),
+      st:(e.start&&e.start.dateTime)||"", en:(e.end&&e.end.dateTime)||""}))
    .sort((a,b)=>a.t.localeCompare(b.t));
 }
 const CALERR = {
@@ -527,11 +609,16 @@ function vDzis(){
 
   const ce=calFor(d), showCal=S.cal.on||S.cal.err, secCal=sec("Kalendarz Google");
   calNote(secCal);
-  if(S.cal.err){ }
-  else if(!ce.length) secCal.append(el("p",{class:"note"},S.cal.on?"Brak wpisów na ten dzień.":"Wczytywanie…"));
-  else ce.forEach(e=>secCal.append(el("div",{class:"row",style:"gap:6px"},
-    el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums;min-width:36px"},e.t||"cały"),
-    el("span",{},e.s))));
+  if(!S.cal.err){
+    if(!ce.length) secCal.append(el("p",{class:"note"},S.cal.on?"Brak wpisów na ten dzień.":"Wczytywanie…"));
+    else ce.forEach(e=>secCal.append(calRow(e,d)));
+    if(S.cal.on){
+      if(calEdit && calEdit.date===d) calForm(secCal,d);
+      else secCal.append(el("div",{class:"row"},el("button",{class:"ghost",onclick:()=>{
+        calEdit={date:d,from:"09:00",to:"10:00"}; S.cal.msg=null; render(); }},"+ dodaj wpis")));
+    }
+  }
+  if(S.cal.msg) secCal.append(el("p",{class:"note"},S.cal.msg));
 
   const mo=parse(d), ink=(mo.getMonth()===9)?INKTOBER[mo.getDate()-1]:null;
   const ta=el("textarea",{rows:9,class:"grow",style:"font-family:var(--disp);color:var(--dziennik);font-size:15px",
