@@ -373,7 +373,14 @@ let calRange = "";
 const GSCOPE = "https://www.googleapis.com/auth/calendar.events";
 const GAPI   = "https://www.googleapis.com/calendar/v3";
 const GTZ    = "Europe/Warsaw";
+const GOK_KEY = "planer.gok";
 let gTok = null, gExp = 0, gBusy = false, gLast = 0, calAt = 0, calEdit = null;
+let gEverOk = false;
+try{ gEverOk = localStorage.getItem(GOK_KEY)==="1"; }catch(e){}
+function gMark(ok){
+  gEverOk = ok;
+  try{ ok ? localStorage.setItem(GOK_KEY,"1") : localStorage.removeItem(GOK_KEY); }catch(e){}
+}
 
 function gisLoad(){
   return new Promise((ok,no)=>{
@@ -407,7 +414,7 @@ function gRequest(interactive){
       callback: r=>{ done = true;
         if(r && r.access_token){
           gTok = r.access_token; gExp = Date.now() + ((r.expires_in||3600)*1000);
-          gStore(); ok(gTok);
+          gMark(true); gStore(); ok(gTok);
         } else no({code:"denied"}); },
       error_callback: e=>{ done = true;
         no({code:(e && e.type==="popup_closed") ? "denied" : "connect"}); }
@@ -424,11 +431,12 @@ async function gToken(interactive){
 // Google otwiera okienko także przy cichym odnawianiu, a przeglądarka wpuszcza je
 // tylko tuż po kliknięciu — więc odnawiamy przy okazji dowolnego kliknięcia w planerze.
 document.addEventListener("pointerdown", ()=>{
-  if(!GH.gcal || gBusy || gValid()) return;
-  if(Date.now() - gLast < 60000) return;
+  if(!GH.gcal || gBusy || gValid() || !gEverOk) return;
+  if(Date.now() - gLast < 600000) return;
   gLast = Date.now(); gBusy = true;
   gRequest(false).then(()=>{ gBusy=false; calLoad(false,true); })
-                 .catch(()=>{ gBusy=false; });
+                 .catch(()=>{ gBusy=false; gMark(false);
+                   S.cal.on=false; S.cal.err="connect"; render(); });
 }, {capture:true, passive:true});
 
 async function calApi(path, opts){
@@ -449,9 +457,16 @@ async function calLoad(interactive, force){
   const from = addD(a,-7), to = key(d), rng = from+to;
   if(!force && !interactive && rng===calRange && Date.now()-calAt < 300000) return;
   calRange = rng;
-  let tok;
-  try{ tok = await gToken(!!interactive); }
-  catch(e){ S.cal.on=false; S.cal.err=(e&&e.code)||"connect"; render(); return; }
+  let tok = null;
+  if(interactive){
+    try{ tok = await gToken(true); }
+    catch(e){ S.cal.on=false; S.cal.err=(e&&e.code)||"connect"; render(); return; }
+  }else{
+    if(!gValid()){                    // bez kliknięcia nie wywołujemy okienka Google
+      S.cal.on=false; S.cal.err = GH.gcal ? "connect" : "no_client"; render(); return;
+    }
+    tok = gTok;
+  }
   const q = "?timeMin="+from+"T00%3A00%3A00Z&timeMax="+to+"T00%3A00%3A00Z"
           + "&singleEvents=true&orderBy=startTime&maxResults=250&timeZone="+encodeURIComponent(GTZ);
   try{
