@@ -29,8 +29,9 @@ img{max-width:100%}
   --line:#e6dbd6; --line-2:#efe6e2;
   --pink:#bd7f90; --pink-2:#a86a7c; --pink-soft:#f7e9ec;
   --ink:#4a6a5b; --dziennik:#6b5a6e;
-  --s:#8e5bb5; --g:#4a7fa8; --t:#c85f20; --z:#8a6248; --o:#68742a; --r:#b8283a;
-  --nawyk:#c0798b;                 /* antyczny róż, Staedtler Triplus 26 */
+  /* Staedtler Triplus — odczytane z wzornika Klaudii */
+  --s:#81559c; --g:#5c94b7; --t:#c53501; --z:#44251b; --o:#5a6016; --r:#9f2b37;
+  --nawyk:#985e7d;                 /* 26 Antique Pink */
   --sc5:#148a72; --sc4:#68742a; --sc3:#cf9420; --sc2:#c85f20; --sc1:#b8283a;
   --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
   --disp:"Newsreader","Iowan Old Style",Palatino,Georgia,serif;
@@ -43,8 +44,8 @@ img{max-width:100%}
   --line:#3a3335; --line-2:#322c2e;
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
-  --s:#b388d6; --g:#78aad4; --t:#ec8c4e; --z:#b08a6c; --o:#9aa84a; --r:#e2616f;
-  --nawyk:#d894a6;
+  --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#8b7872; --o:#999c6f; --r:#c37c83;
+  --nawyk:#bf9bae;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
 }}
@@ -55,8 +56,8 @@ img{max-width:100%}
   --line:#3a3335; --line-2:#322c2e;
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
-  --s:#b388d6; --g:#78aad4; --t:#ec8c4e; --z:#b08a6c; --o:#9aa84a; --r:#e2616f;
-  --nawyk:#d894a6;
+  --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#8b7872; --o:#999c6f; --r:#c37c83;
+  --nawyk:#bf9bae;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
 }
@@ -226,7 +227,14 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
   background:transparent;display:block;padding:0;border-left:1px solid var(--line)}
 .legkw{width:17px;height:17px;min-height:17px;flex:0 0 17px;aspect-ratio:auto;border-radius:4px}
 @media (max-width:900px){ .tb.siatka th:not(.co5){color:transparent} }
-@media (max-width:720px){ .tb.siatka .lft{width:74px;font-size:10.5px} .tb.siatka th{font-size:8px} }
+@media (max-width:720px){
+  .tb.siatka{table-layout:auto;width:auto}          /* na telefonie przesuwamy w bok */
+  .tb.siatka .lft{width:auto;font-size:11px;position:sticky;left:0;background:var(--paper);
+    z-index:1;padding-right:8px}
+  .tb.siatka th{font-size:9px;min-width:24px}
+  .tb.siatka th:not(.co5){color:var(--fg-3)}
+  .cell.kw{width:24px;min-width:24px;height:24px;aspect-ratio:auto}
+}
 .cell.kw.s1{background:var(--nawyk);border-color:transparent}
 .cell.kw.s2{background:linear-gradient(135deg,var(--nawyk) 0 50%,transparent 50% 100%)}
 .cell.kw.s0{background:var(--line-2);border-color:var(--line)}
@@ -2246,7 +2254,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-013646";
+const VER = "20261005-014121";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
