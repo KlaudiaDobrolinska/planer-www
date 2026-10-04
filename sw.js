@@ -1,5 +1,5 @@
-// Pozwala otworzyc planer bez internetu. Wersja: 20261005-002249
-const WERSJA = "20261005-002249";
+// Pozwala otworzyc planer bez internetu. Wersja: 20261005-002413
+const WERSJA = "20261005-002413";
 const SKRZYNIA = "planer-" + WERSJA;
 const SZKIELET = ["./", "./index.html", "./manifest.webmanifest",
                   "./ikona-180.png", "./ikona-192.png", "./ikona-512.png"];
@@ -21,8 +21,14 @@ self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
   if(u.origin !== location.origin) return;           // GitHub i Google - bez posrednika
   if(u.pathname.endsWith("wersja.txt")) return;      // zawsze prosto z sieci
+  // GitHub kaze trzymac strone 10 minut - przy dokumencie wymuszamy sprawdzenie u zrodla
+  const dokument = e.request.mode === "navigate"
+    || u.pathname.endsWith("/") || u.pathname.endsWith(".html");
+  const zapytanie = dokument
+    ? new Request(e.request.url, {cache:"no-cache", credentials:"same-origin"})
+    : e.request;
   e.respondWith(
-    fetch(e.request)
+    fetch(zapytanie)
       .then(r => {
         if(r && r.ok){ const kopia = r.clone();
           caches.open(SKRZYNIA).then(c => c.put(e.request, kopia)); }
