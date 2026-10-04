@@ -171,18 +171,25 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .axis{display:grid;grid-template-columns:30px 1fr;border:1px solid var(--line-2);
   border-radius:7px;overflow:hidden;background:var(--paper-2)}
 .hr{display:contents}
-.hlab{font-size:10.5px;color:var(--fg-3);padding-right:5px;text-align:right;height:24px;
+.hlab{font-size:10.5px;color:var(--fg-3);padding-right:5px;text-align:right;height:16px;
   display:flex;align-items:center;justify-content:flex-end;font-variant-numeric:tabular-nums;
   border-top:1px solid var(--line-2)}
-.hcell{height:24px;position:relative;border-top:1px solid var(--line-2);border-left:1px solid var(--line-2)}
+.hcell{height:16px;position:relative;border-top:1px solid var(--line-2);border-left:1px solid var(--line-2);
+  cursor:pointer}
+.hcell:hover{background:var(--pink-soft)}
+.hr.pol .hcell,.hr.pol .hlab{border-top-style:dotted}
 .hr:first-child .hlab,.hr:first-child .hcell{border-top:0}
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
-  display:flex;align-items:center;line-height:1.25;z-index:1}
+  display:flex;align-items:center;line-height:1.25;z-index:1;cursor:pointer}
+.blk.done{background:color-mix(in srgb,currentColor 24%,transparent)}
+.blk.done span{font-weight:600}
 .blk span{color:var(--fg)}
 
 /* tabele */
 .tin{width:78px;flex:0 0 auto}
+.tnote{margin:0 4px 6px 28px;width:calc(100% - 34px);font-size:13px;color:var(--fg-2);
+  border:1px solid var(--line);border-radius:6px;padding:5px 7px;background:var(--paper-2)}
 .blkrow{flex-wrap:wrap}
 .blkrow .ttxt,.blkrow input[type=text]{flex:1 1 110px;min-width:0}
 .tb{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;table-layout:fixed}
@@ -264,7 +271,9 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 :root[data-skin="mac"] .sec>.tasks{padding:0;gap:0}
 :root[data-skin="mac"] .tasks .task{padding:7px 14px;border-radius:0;min-height:34px;
   align-items:center}
-:root[data-skin="mac"] .tasks .task+.task{border-top:1px solid var(--line-2)}
+:root[data-skin="mac"] .taskwrap .task{padding-bottom:2px}
+:root[data-skin="mac"] .tnote{margin:0 14px 9px 40px;width:calc(100% - 54px)}
+:root[data-skin="mac"] .sec>.tasks>*+*{border-top:1px solid var(--line-2)}
 :root[data-skin="mac"] .tasks .task:hover{background:var(--paper-2)}
 
 /* pola jak kontrolki systemowe, nie linie w zeszycie */
@@ -488,6 +497,7 @@ const saveDay = (d,p)=>{ S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d])
 const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, ...(S.week[w]||{})});
 const saveWeek= (w,p)=>{ S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
+const duza = s => { const v=(s||"").trim(); return v ? v[0].toLocaleUpperCase("pl")+v.slice(1) : v; };
 
 /* ---------- subskrypcje ---------- */
 function ensureMonth(m){
@@ -792,7 +802,7 @@ function vDzis(){
         upd(t.id,{st:c[(c.indexOf(t.st)+1)%c.length]||c[0]})}}, STMARK[t.st]||"•"));
     const span=el("button",{class:"ttxt",title:"Kliknij, by edytować",onclick:()=>{
       const inp=el("input",{type:"text",value:t.txt});
-      inp.addEventListener("blur",()=>upd(t.id,{txt:inp.value.trim()||t.txt}));
+      inp.addEventListener("blur",()=>upd(t.id,{txt:duza(inp.value)||t.txt}));
       inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();inp.blur()}});
       span.replaceWith(inp); inp.focus(); inp.select();
     }}, t.txt);
@@ -801,9 +811,18 @@ function vDzis(){
         upd(t.id,{area:ks[(ks.indexOf(t.area)+1)%ks.length]})}},(AREAS[t.area]||AREAS.Z).nr),
       el("button",{class:"ghost",title:t.minor?"Nad kreskę":"Pod kreskę",
         onclick:()=>upd(t.id,{minor:!t.minor})}, t.minor?"↑":"↓"),
+      el("button",{class:"ghost",title:t.note?"Notatka":"Dodaj notatkę",
+        onclick:()=>{ S.notatka = (S.notatka===t.id ? null : t.id); render(); }},
+        t.note?"≡":"+≡"),
       el("button",{class:"ghost",title:"Wyżej",onclick:()=>move(t.id,-1)},"⌃"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{tasks:D.tasks.filter(x=>x.id!==t.id)})},"✕")));
-    return r;
+    if(!t.note && S.notatka!==t.id) return r;
+    const ta=el("textarea",{rows:2,class:"tnote",placeholder:"Notatka — szczegóły, nad czym pracujemy…"});
+    ta.value=t.note||"";
+    ta.addEventListener("change",()=>upd(t.id,{note:ta.value.trim()}));
+    const paczka=el("div",{class:"taskwrap"}, r, ta);
+    if(S.notatka===t.id) setTimeout(()=>ta.focus(),40);
+    return paczka;
   }
   const list=el("div",{class:"tasks"});
   if(!D.tasks.length) list.append(el("p",{class:"note"},
@@ -813,7 +832,7 @@ function vDzis(){
 
   const inp=el("input",{type:"text",placeholder:"Nowe zadanie…",id:"nowezadanie"});
   let na="Z";
-  const addT=()=>{const v=inp.value.trim(); if(!v)return;
+  const addT=()=>{const v=duza(inp.value); if(!v)return;
     saveDay(d,{tasks:[...D.tasks,{id:uid(),txt:v,st:"todo",area:na,minor:false}]}); inp.value=""};
   inp.addEventListener("keydown",e=>{if(e.key==="Enter")addT()});
   const ab=el("div",{class:"row",style:"gap:3px"});
@@ -822,36 +841,67 @@ function vDzis(){
   const secTasks=sec("Zadania",list,el("div",{class:"row",style:"margin-top:6px"},inp),
     el("div",{class:"row"},ab,el("span",{class:"spacer"}),el("button",{class:"btn",onclick:addT},"Dodaj")));
 
-  /* oś godzin */
-  const H0=7,H1=23, axis=el("div",{class:"axis"});
+  /* oś godzin — wiersz na pół godziny, kliknięcie zakłada blok */
+  const H0=7, H1=23, POL=16;
+  const axis=el("div",{class:"axis"});
+  const dodajOd=(hh,mm)=>{
+    const kon=new Date(2000,0,1,hh,mm); kon.setMinutes(kon.getMinutes()+90);
+    saveDay(d,{blocks:[...D.blocks,{id:uid(), s:pad(hh)+":"+pad(mm),
+      e:pad(kon.getHours())+":"+pad(kon.getMinutes()), area:"T", txt:"", done:false}]});
+  };
   for(let h=H0;h<=H1;h++){
-    const cell=el("div",{class:"hcell"});
-    axis.append(el("div",{class:"hr"},el("div",{class:"hlab"},String(h)),cell));
-    D.blocks.forEach(b=>{
-      const s=+b.s.slice(0,2)+(+b.s.slice(3))/60, e=+b.e.slice(0,2)+(+b.e.slice(3))/60;
-      if(s>=h&&s<h+1) cell.append(el("div",{class:"blk",
-        style:"top:"+((s-h)*24)+"px;height:"+(Math.max(.5,Math.min(e,H1+1)-s)*24-2)+"px;color:"+(AREAS[b.area]||AREAS.Z).c},
-        el("span",{},b.txt||AREAS[b.area].n)));
-    });
+    for(let pol=0; pol<2; pol++){
+      const mm=pol*30, pocz=h+pol*0.5;
+      const cell=el("div",{class:"hcell",title:"Kliknij, by zacząć tu blok",
+        onclick:()=>dodajOd(h,mm)});
+      axis.append(el("div",{class:"hr"+(pol?" pol":"")},
+        el("div",{class:"hlab"}, pol ? "" : String(h)), cell));
+      D.blocks.forEach(b=>{
+        const s=+b.s.slice(0,2)+(+b.s.slice(3))/60, e=+b.e.slice(0,2)+(+b.e.slice(3))/60;
+        if(s>=pocz && s<pocz+0.5){
+          const opis=[b.txt||((AREAS[b.area]||AREAS.Z).n), b.proj].filter(Boolean).join(" · ");
+          cell.append(el("div",{class:"blk"+(b.done?" done":""),
+            title:(b.done?"Zrobione":"Kliknij, gdy zrobione")+" · "+b.s+"–"+b.e,
+            style:"top:"+((s-pocz)*2*POL)+"px;height:"
+              +Math.max(18,(Math.max(.25,Math.min(e,H1+1)-s)*2*POL-2))+"px;color:"
+              +(AREAS[b.area]||AREAS.Z).c,
+            onclick:(ev)=>{ ev.stopPropagation();
+              saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)}); }},
+            el("span",{}, (b.done?"✓ ":"")+opis)));
+        }
+      });
+    }
   }
   const bl=el("div",{class:"tasks",style:"margin-top:7px"});
   D.blocks.forEach(b=>{
     const t1=el("input",{type:"time",value:b.s,class:"tin"});
     const t2=el("input",{type:"time",value:b.e,class:"tin"});
     const tx=el("input",{type:"text",value:b.txt||"",placeholder:"Nazwa bloku"});
-    const sv=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,s:t1.value,e:t2.value,txt:tx.value}:x)});
-    [t1,t2,tx].forEach(i=>i.addEventListener("change",sv));
+    const pr=el("input",{type:"text",value:b.proj||"",placeholder:"szczegół — np. który projekt",
+      style:"width:auto;flex:1 1 150px;min-width:0"});
+    const sv=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
+      ?{...x,s:t1.value,e:t2.value,txt:duza(tx.value),proj:duza(pr.value)}:x)});
+    [t1,t2,tx,pr].forEach(i=>i.addEventListener("change",sv));
     bl.append(el("div",{class:"task blkrow"},
       el("button",{class:"mark",style:"color:"+(AREAS[b.area]||AREAS.Z).c,title:"Obszar",
         onclick:()=>{const ks=Object.keys(AREAS);
           saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,area:ks[(ks.indexOf(b.area)+1)%ks.length]}:x)})}},"■"),
-      t1,t2,tx,
+      t1,t2,tx,pr,
+      el("button",{class:"ghost",title:b.done?"Zrobione":"Oznacz jako zrobione",
+        onclick:()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)})},
+        b.done?"✓":"○"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{blocks:D.blocks.filter(x=>x.id!==b.id)})},"✕")));
   });
-  const secBloki=sec("Bloki",axis,bl,
-    el("button",{class:"btn",style:"align-self:flex-start",onclick:()=>saveDay(d,{blocks:[...D.blocks,
-      {id:uid(),s:"09:00",e:"10:30",area:"T",txt:""}]})},"Dodaj blok"),
-    el("p",{class:"note"},"Blok = 90–120 minut jednej rzeczy. Najwyżej 2–3 dziennie."));
+  const secBloki=sec("Bloki",axis,
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
+        {id:uid(),s:"09:00",e:"10:30",area:"T",txt:"",done:false}]})},"Dodaj blok"),
+      el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
+        {id:uid(),s:"20:00",e:"21:00",area:"T",txt:"Szydełko",proj:"",done:false}]})},"Szydełko")),
+    bl,
+    el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
+      +"Kliknij w gotowy blok, gdy go zrobisz — wypełni się kolorem. "
+      +"Blok = 90–120 minut jednej rzeczy, najwyżej 2–3 dziennie."));
 
   /* prawa strona */
   const types=el("div",{class:"row"});
@@ -1662,7 +1712,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-004443";
+const VER = "20261005-005221";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
