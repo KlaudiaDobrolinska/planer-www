@@ -1625,6 +1625,157 @@ function vLegenda(){
   return {L:[c1,c2], R:[c3,c4,c7], even:true};
 }
 
+/* ---------- edytory w miejscu, w którym dana rzecz jest widoczna ---------- */
+function edytorZnakow(box){
+  ST.forEach(k=>{
+    const mk=el("input",{type:"text",value:STMARK[k]||"",maxlength:"2",
+      style:"width:46px;flex:0 0 46px;text-align:center"});
+    const nm=el("input",{type:"text",value:STNAME[k]||"",
+      style:"width:auto;flex:1 1 110px;min-width:0"});
+    const cy=el("input",{type:"checkbox"}); cy.checked=!!STCYC[k];
+    mk.addEventListener("change",()=>{STMARK[k]=mk.value||"•"; cfgZapisz(); render();});
+    nm.addEventListener("change",()=>{STNAME[k]=duza(nm.value); cfgZapisz(); render();});
+    cy.addEventListener("change",()=>{STCYC[k]=cy.checked?1:0; cfgZapisz(); render();});
+    box.append(el("div",{class:"row"},mk,nm,
+      el("label",{class:"row",style:"gap:5px;flex:0 0 auto"},cy,
+        el("span",{class:"note"},"cykl")),
+      el("button",{class:"ghost",title:"Usuń oznaczenie",onclick:()=>{
+        if(ST.length<2) return;
+        if(!confirm("Usunąć oznaczenie „"+(STNAME[k]||k)+"”? Zadania z nim pokażą kropkę.")) return;
+        ST.splice(ST.indexOf(k),1); delete STMARK[k]; delete STNAME[k]; delete STCYC[k];
+        cfgZapisz(); render();
+      }},"✕")));
+  });
+  box.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      const id="z"+uid();
+      ST.push(id); STMARK[id]="◆"; STNAME[id]="Nowe oznaczenie"; STCYC[id]=1;
+      cfgZapisz(); render();
+    }},"Dodaj oznaczenie"),
+    el("button",{class:"ghost",onclick:()=>{
+      if(!confirm("Przywrócić oznaczenia fabryczne?")) return;
+      cfgZastosuj({areas:JSON.parse(JSON.stringify(AREAS))}); cfgZapisz(); render();
+    }},"przywróć fabryczne")));
+  box.append(el("p",{class:"note"},
+    "„W cyklu” znaczy, że klikanie kratki przy zadaniu przechodzi przez to oznaczenie. "
+    +"Kolejność na liście to kolejność klikania, czyli też priorytet."));
+}
+function edytorObszarow(box){
+  Object.keys(AREAS).forEach(k=>{
+    const a=AREAS[k];
+    const kol=el("input",{type:"color",value:hexZ(a.c),
+      style:"width:46px;flex:0 0 46px;padding:2px;height:28px"});
+    const nm=el("input",{type:"text",value:a.n||"",
+      style:"width:auto;flex:1 1 130px;min-width:0"});
+    const nr=el("input",{type:"text",value:a.nr||"",style:"width:64px;flex:0 0 64px"});
+    kol.addEventListener("change",()=>{AREAS[k].c=kol.value; cfgZapisz(); render();});
+    nm.addEventListener("change",()=>{AREAS[k].n=nm.value; cfgZapisz(); render();});
+    nr.addEventListener("change",()=>{AREAS[k].nr=nr.value; cfgZapisz(); render();});
+    box.append(el("div",{class:"row"},
+      el("b",{style:"width:18px;flex:0 0 18px;font-weight:600"},k),kol,nm,
+      el("span",{class:"note"},"Triplus"),nr,
+      el("button",{class:"ghost",title:"Usuń obszar",onclick:()=>{
+        if(Object.keys(AREAS).length<2) return;
+        if(!confirm("Usunąć obszar „"+(a.n||k)+"”? Wpisy zostaną, ale bez koloru.")) return;
+        delete AREAS[k]; cfgZapisz(); render();
+      }},"✕")));
+  });
+  box.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      const uzyte=Object.keys(AREAS);
+      const wolna=[..."ABCDEFHIJKLNPQUVWXY"].find(x=>!uzyte.includes(x));
+      if(!wolna) return;
+      AREAS[wolna]={n:"Nowy obszar",c:"#777777",nr:""};
+      cfgZapisz(); render();
+    }},"Dodaj obszar"),
+    el("button",{class:"ghost",onclick:()=>{
+      if(!confirm("Przywrócić obszary fabryczne?")) return;
+      cfgZastosuj({marks:{ST:[...ST],STMARK:{...STMARK},STNAME:{...STNAME},STCYC:{...STCYC}}});
+      cfgZapisz(); render();
+    }},"przywróć fabryczne")));
+  box.append(el("p",{class:"note"},
+    "Litera to klucz zapisany przy zadaniach i blokach — zmieniasz nazwę, kolor i numer pisaka. "
+    +"Kolor jest ten sam w trybie jasnym i ciemnym."));
+}
+function edytorNawykow(box){
+  HABITS.forEach((h,i)=>{
+    const sk=el("input",{type:"text",value:h[0],maxlength:"3",
+      style:"width:54px;flex:0 0 54px;text-align:center"});
+    const nm=el("input",{type:"text",value:h[1],
+      style:"width:auto;flex:1 1 150px;min-width:0"});
+    sk.addEventListener("change",()=>{HABITS[i][0]=(sk.value||"?").trim().slice(0,3); cfgZapisz(); render();});
+    nm.addEventListener("change",()=>{HABITS[i][1]=duza(nm.value); cfgZapisz(); render();});
+    box.append(el("div",{class:"row"},sk,nm,
+      el("button",{class:"ghost",title:"Usuń nawyk",onclick:()=>{
+        if(HABITS.length<2) return;
+        if(!confirm("Usunąć nawyk „"+h[1]+"”? Zapisane kratki zostaną w danych, ale znikną z tabeli.")) return;
+        HABITS.splice(i,1); cfgZapisz(); render();
+      }},"✕")));
+  });
+  box.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{ HABITS.push(["Nw","Nowy nawyk"]); cfgZapisz(); render(); }},
+      "Dodaj nawyk"),
+    el("button",{class:"ghost",onclick:()=>{
+      if(!confirm("Przywrócić nawyki fabryczne?")) return;
+      HABITS.length=0; FABR.HABITS.forEach(x=>HABITS.push([...x])); cfgZapisz(); render();
+    }},"przywróć fabryczne")));
+  box.append(el("p",{class:"note"},"Skrót to nagłówek kolumny — najwyżej trzy znaki."));
+}
+function edytorKotwic(box){
+  const DNINAZ=["pon","wt","śr","czw","pt","sob","nd"];
+  KOTWICE.forEach((k,i)=>{
+    const tx=el("input",{type:"text",value:k.txt||"",
+      style:"width:auto;flex:1 1 160px;min-width:0"});
+    tx.addEventListener("change",()=>{KOTWICE[i].txt=duza(tx.value); cfgZapisz(); render();});
+    const dni=el("div",{class:"row",style:"gap:2px"});
+    DNINAZ.forEach((nz,j)=>{
+      const nr=j+1, wl=(k.dni||[]).includes(nr);
+      dni.append(el("button",{class:"btn icon"+(wl?" on":""),title:nz,onclick:()=>{
+        const zb=new Set(k.dni||[]); zb.has(nr)?zb.delete(nr):zb.add(nr);
+        KOTWICE[i].dni=[...zb].sort((a,b)=>a-b); cfgZapisz(); render();
+      }},nz));
+    });
+    box.append(el("div",{class:"row"},tx,
+      el("button",{class:"ghost",title:"Obszar",onclick:()=>{
+        const ks=Object.keys(AREAS);
+        KOTWICE[i].area=ks[(ks.indexOf(k.area)+1)%ks.length]; cfgZapisz(); render();
+      }},(AREAS[k.area]||AREAS.Z).nr),
+      el("button",{class:"ghost",title:"Usuń kotwicę",onclick:()=>{
+        if(!confirm("Usunąć kotwicę „"+(k.txt||"")+"”?")) return;
+        KOTWICE.splice(i,1); cfgZapisz(); render();
+      }},"✕")), dni);
+  });
+  box.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      KOTWICE.push({dni:[1,2,3,4,5,6,7], txt:"Nowa kotwica", area:"Z"}); cfgZapisz(); render();
+    }},"Dodaj kotwicę"),
+    el("button",{class:"ghost",onclick:()=>{
+      if(!confirm("Przywrócić kotwice fabryczne?")) return;
+      KOTWICE.length=0; FABR.KOTWICE.forEach(x=>KOTWICE.push({...x,dni:[...x.dni]}));
+      cfgZapisz(); render();
+    }},"przywróć fabryczne")));
+  box.append(el("p",{class:"note"},
+    "Kotwica dopisuje się pod kreską — dziś i w przyszłych dniach, nigdy wstecz. "
+    +"Skasowana z dnia nie wraca."));
+}
+function edytorTerminow(box){
+  TERMINY.slice().sort((a,b)=>(a.d||"").localeCompare(b.d||"")).forEach(x=>{
+    const i=TERMINY.indexOf(x);
+    const dt=el("input",{type:"date",value:x.d||"",style:"width:auto;flex:0 0 150px"});
+    const tx=el("input",{type:"text",value:x.txt||"",placeholder:"Czego dotyczy",
+      style:"width:auto;flex:1 1 150px;min-width:0"});
+    dt.addEventListener("change",()=>{TERMINY[i].d=dt.value; cfgZapisz(); render();});
+    tx.addEventListener("change",()=>{TERMINY[i].txt=duza(tx.value); cfgZapisz(); render();});
+    box.append(el("div",{class:"row"},dt,tx,
+      el("button",{class:"ghost",title:"Usuń termin",
+        onclick:()=>{TERMINY.splice(i,1); cfgZapisz(); render();}},"✕")));
+  });
+  box.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      TERMINY.push({d:addD(key(new Date()),7), txt:"Nowy termin"}); cfgZapisz(); render();
+    }},"Dodaj termin")));
+}
+
 /* ---------- informacje o synchronizacji ---------- */
 function kiedys(ts){
   if(!ts) return null;
@@ -2070,7 +2221,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-012437";
+const VER = "20261005-012657";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
