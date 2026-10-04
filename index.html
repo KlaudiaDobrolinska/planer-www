@@ -236,13 +236,47 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
   #tabsbot button[aria-current="page"]{background:var(--pink);color:#fff}
 }
 /* skórka „System”: płaskie karty, bez kratki, krój systemowy */
-:root[data-skin="mac"] .scroll{background-image:none}
+:root[data-skin="mac"] .scroll{background-image:none;padding:18px 20px 40px}
+:root[data-skin="mac"] .wrap{max-width:740px;gap:20px;margin:0 auto}
+:root[data-skin="mac"] .cols,:root[data-skin="mac"] .cols.even{
+  grid-template-columns:minmax(0,1fr);gap:20px}
+:root[data-skin="mac"] .colbox{gap:20px}
+
+/* grupa jak w Ustawieniach systemu: nagłówek na szarym pasku, wiersze oddzielone włosową linią */
+:root[data-skin="mac"] .sec{padding:0;gap:0;border-radius:10px;overflow:hidden}
+:root[data-skin="mac"] .sec>*{padding:9px 14px}
+:root[data-skin="mac"] .sec>*+*{border-top:1px solid var(--line-2)}
+:root[data-skin="mac"] .sec>h3{background:var(--paper-2);padding:7px 14px;border-bottom:0}
+:root[data-skin="mac"] .sec>p.note:last-child{color:var(--fg-3);font-size:12px}
+
+/* listy zadań pełną szerokością, wiersz jak w aplikacji systemowej */
+:root[data-skin="mac"] .sec>.tasks{padding:0;gap:0}
+:root[data-skin="mac"] .tasks .task{padding:7px 14px;border-radius:0;min-height:34px;
+  align-items:center}
+:root[data-skin="mac"] .tasks .task+.task{border-top:1px solid var(--line-2)}
+:root[data-skin="mac"] .tasks .task:hover{background:var(--paper-2)}
+
+/* pola jak kontrolki systemowe, nie linie w zeszycie */
+:root[data-skin="mac"] input[type=text],:root[data-skin="mac"] input[type=time],
+:root[data-skin="mac"] textarea,:root[data-skin="mac"] select{
+  border:1px solid var(--line);border-radius:6px;background:var(--paper);padding:5px 8px}
+:root[data-skin="mac"] input[type=text]:focus,:root[data-skin="mac"] input[type=time]:focus,
+:root[data-skin="mac"] textarea:focus{border-color:var(--pink);
+  box-shadow:0 0 0 3px var(--pink-soft);outline:0}
+:root[data-skin="mac"] .ttxt{border:0;background:transparent;padding:0}
+:root[data-skin="mac"] .ttxt:focus{box-shadow:none}
+
+/* pasek narzędzi zamiast karty tytułowej */
+:root[data-skin="mac"] header.bar{padding:9px 20px;align-items:center;gap:8px;
+  background:color-mix(in srgb,var(--side) 88%,transparent)}
+:root[data-skin="mac"] header.bar .sub{font-size:12px}
+:root[data-skin="mac"] #side{width:178px;flex-basis:178px;padding:14px 8px}
 :root[data-skin="mac"] .sec{border-radius:9px;box-shadow:0 1px 2px rgba(0,0,0,.055);
   padding:13px 16px 15px;gap:9px}
 :root[data-skin="mac"] .sec>h3{font-size:11px;font-weight:600;letter-spacing:.045em;
   color:var(--fg-3);border-bottom:0;padding-bottom:0}
 :root[data-skin="mac"] header.bar{padding-top:10px;padding-bottom:10px}
-:root[data-skin="mac"] header.bar h2{font-size:17px;font-weight:600;letter-spacing:-.01em}
+:root[data-skin="mac"] header.bar h2{font-size:15.5px;font-weight:600;letter-spacing:-.01em}
 :root[data-skin="mac"] #side{background:var(--side)}
 :root[data-skin="mac"] #side h1{font-size:11px;font-weight:600;letter-spacing:.05em;
   text-transform:uppercase;color:var(--fg-3);margin-bottom:10px}
@@ -360,8 +394,8 @@ const S = {
 };
 S.month = S.date.slice(0,7);
 const SKIN = {
-  get(){ try{ return localStorage.getItem("planer.skin")==="mac" ? "mac" : "papier"; }
-         catch(e){ return "papier"; } },
+  get(){ try{ return localStorage.getItem("planer.skin")==="papier" ? "papier" : "mac"; }
+         catch(e){ return "mac"; } },
   set(v){ try{ localStorage.setItem("planer.skin",v); }catch(e){}
           document.documentElement.dataset.skin = v; }
 };
@@ -1012,7 +1046,8 @@ function vLegenda(){
 /* ---------- powłoka ---------- */
 function buildTabs(){
   const mk=(id,label)=>el("button",{class:"nav","aria-current":S.view===id?"page":false,
-    onclick:()=>{S.view=id;document.querySelector(".scroll").scrollTop=0;render()}},label);
+    onclick:()=>{ if(!S.db){ render(); return; }
+      S.view=id;document.querySelector(".scroll").scrollTop=0;render()}},label);
   document.getElementById("navtop").replaceChildren(...VIEWS.map(([i,l])=>mk(i,l)));
   document.getElementById("tabsbot").replaceChildren(...VIEWS.map(([i,l])=>{
     const b=mk(i,l); b.className=""; return b}));
@@ -1066,10 +1101,17 @@ function grow(){
 }
 function render(){
   buildTabs(); buildBar();
-  const v=document.getElementById("view"); v.replaceChildren();
+  const v=document.getElementById("view");
+  if(S.ready && !S.db){          // zamknięty planer: zawsze PIN albo ustawienia, nic poza tym
+    const locked = !!VAULT && !AESKEY;
+    if(!v.querySelector(locked ? ".lock" : ".setup")){
+      v.replaceChildren();
+      locked ? unlockScreen() : setupScreen();
+    }
+    return;
+  }
+  v.replaceChildren();
   if(!S.ready){ v.append(sec("Planer",el("p",{class:"note"},"Wczytywanie…"))); return; }
-  if(!S.db){ v.append(sec("Brak dostępu do danych",
-    el("p",{class:"note"},"Otwórz tę stronę jako zalogowana Klaudia — wtedy planer wczyta Twoje dni, trackery i cele."))); return; }
   if(S.canWrite===false) v.append(el("p",{class:"err"},"Tryb tylko do odczytu — zmiany nie zapiszą się."));
   const r={dzis:vDzis,tydzien:vTydzien,miesiac:vMiesiac,trackery:vTrackery,
     cele:vCele,listy:vListy,legenda:vLegenda}[S.view]();
@@ -1088,7 +1130,7 @@ const DIRTY = new Set();     // pliki do zapisania
 let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
 
 const TOK_KEY = "planer.gtok";
-const VER = "20261004-233014";
+const VER = "20261004-233350";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1311,7 +1353,7 @@ function setupScreen(msg){
   };
   [inTok,inCal,inRepo].forEach(x=>
     x.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); connect(); } }));
-  v.append(sec("Pierwsze uruchomienie",
+  const box = sec("Pierwsze uruchomienie",
     el("p",{class:"note"},"Planer trzyma dane w Twoim prywatnym repozytorium GitHub „planer”. "
       +"Wklej token dostępu — raz na tym urządzeniu."),
     msg ? el("p",{class:"err"},msg) : null,
@@ -1325,7 +1367,8 @@ function setupScreen(msg){
       out),
     el("p",{class:"note"},"Token zostaje tylko w tej przeglądarce i jest zaszyfrowany PIN-em — "
       +"bez PIN-u nie da się go odczytać nawet z pamięci przeglądarki. "
-      +"Nie wysyłaj tokenu nikomu — także mnie w rozmowie.")));
+      +"Nie wysyłaj tokenu nikomu — także mnie w rozmowie."));
+  box.className = "sec setup"; v.append(box);
   setTimeout(()=>inTok.focus(),50);
 }
 
