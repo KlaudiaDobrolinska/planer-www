@@ -470,7 +470,7 @@ function calForm(box, d){
   const inA = el("input",{type:"checkbox"}); inA.checked = !!f.allDay;
   const inF = el("input",{type:"time",value:f.from||"09:00"});
   const inE = el("input",{type:"time",value:f.to||"10:00"});
-  const times = el("div",{class:"row tight"},
+  const times = el("div",{class:"row"},
     el("span",{class:"note"},"od"),inF,el("span",{class:"note"},"do"),inE);
   times.hidden = !!f.allDay;
   inA.addEventListener("change",()=>{ times.hidden = inA.checked; });
