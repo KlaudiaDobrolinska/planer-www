@@ -1600,7 +1600,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-003113";
+const VER = "20261005-003528";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1846,6 +1846,8 @@ function setupScreen(msg){
     el("p",{class:"note"},"Token zostaje tylko w tej przeglądarce i jest zaszyfrowany PIN-em — "
       +"bez PIN-u nie da się go odczytać nawet z pamięci przeglądarki. "
       +"Nie wysyłaj tokenu nikomu — także mnie w rozmowie."));
+  box.append(el("p",{class:"note",style:"text-align:right;opacity:.75"},
+    "wersja " + (typeof VER==="string" ? VER : "?")));
   box.className = "sec setup"; v.append(box);
   setTimeout(()=>inTok.focus(),50);
 }
