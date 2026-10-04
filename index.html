@@ -1282,7 +1282,7 @@ function jsqrWczytaj(){
   return new Promise((ok,no)=>{
     if(window.jsQR) return ok();
     const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
+    s.src = "jsqr.js";
     s.onload = ()=>ok(); s.onerror = ()=>no(new Error("brak biblioteki"));
     document.head.append(s);
   });
@@ -1662,7 +1662,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-004037";
+const VER = "20261005-004212";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1893,10 +1893,7 @@ function setupScreen(msg){
   };
   [inTok,inCal,inRepo].forEach(x=>
     x.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); connect(); } }));
-  const box = sec("Pierwsze uruchomienie",
-    el("p",{class:"note"},"Planer trzyma dane w Twoim prywatnym repozytorium GitHub „planer”. "
-      +"Wklej token dostępu — raz na tym urządzeniu."),
-    msg ? el("p",{class:"err"},msg) : null,
+  const reczne = el("div",{hidden:true,style:"display:flex;flex-direction:column;gap:10px"},
     el("label",{class:"fld"},"Token GitHub",inTok),
     el("label",{class:"fld"},"PIN do planera — sześć cyfr",padSet),
     el("label",{class:"fld"},"Identyfikator Google (kalendarz) — już wpisany",inCal),
@@ -1905,13 +1902,20 @@ function setupScreen(msg){
       el("button",{class:"btn",onclick:connect},"Połącz"),
       el("button",{class:"ghost",onclick:()=>{adv.hidden=!adv.hidden}},"zmień repozytorium"),
       out),
-    el("div",{class:"row"},
-      el("button",{class:"btn",onclick:()=>skanujScreen()},"Zeskanuj kod z komputera"),
-      el("span",{class:"note",style:"flex:1;min-width:0"},
-        "Na Macu: Ustawienia → Przeniesienie na telefon → Pokaż kod.")),
     el("p",{class:"note"},"Token zostaje tylko w tej przeglądarce i jest zaszyfrowany PIN-em — "
       +"bez PIN-u nie da się go odczytać nawet z pamięci przeglądarki. "
       +"Nie wysyłaj tokenu nikomu — także mnie w rozmowie."));
+  const box = sec("Pierwsze uruchomienie",
+    msg ? el("p",{class:"err"},msg) : null,
+    el("p",{class:"note"},"Masz już planer na komputerze? Otwórz tam "
+      +"Ustawienia → Przeniesienie na telefon → Pokaż kod i zeskanuj go stąd."),
+    el("div",{class:"row",style:"justify-content:center"},
+      el("button",{class:"btn on",style:"padding:10px 20px;font-size:15px",
+        onclick:()=>skanujScreen()},"Skanuj kod QR")),
+    el("div",{class:"row",style:"justify-content:center"},
+      el("button",{class:"ghost",onclick:()=>{ reczne.hidden = !reczne.hidden; }},
+        "albo wpisz token ręcznie")),
+    reczne);
   box.append(el("p",{class:"note",style:"text-align:right;opacity:.75"},
     "wersja " + (typeof VER==="string" ? VER : "?")));
   box.className = "sec setup"; v.append(box);
