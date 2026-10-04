@@ -209,6 +209,21 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
   #tabsbot button[aria-current="page"]{background:var(--pink);color:#fff}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.pin{position:relative;display:flex;justify-content:center;padding:10px 0 4px}
+.pin .pininput{position:absolute;inset:0;width:100%;height:100%;opacity:0;
+  border:0;background:transparent;font-size:16px;cursor:pointer;-webkit-appearance:none}
+.pindots{display:flex;gap:9px}
+.pinbox{width:34px;height:44px;border:1px solid var(--line);border-radius:9px;
+  background:var(--paper-2);display:block;position:relative;transition:border-color .15s}
+.pinbox.cur{border-color:var(--pink);box-shadow:0 0 0 2px var(--pink-soft)}
+.pinbox.on::after{content:"";position:absolute;inset:0;margin:auto;width:10px;height:10px;
+  border-radius:50%;background:var(--pink)}
+.pin.bad{animation:shake .42s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+.lock{text-align:center}
+.lock h3{text-align:center}
 </style>
 </head>
 <body>
@@ -1148,13 +1163,37 @@ function status(){
     b.title = SAVED_AT ? "Ostatni zapis "+new Date(SAVED_AT).toLocaleTimeString("pl-PL") : ""; }
 }
 
+/* ---------- pole PIN: sześć cyfr, jak blokada telefonu ---------- */
+function pinPad(onDone){
+  const wrap = el("div",{class:"pin"});
+  const dots = el("div",{class:"pindots"});
+  const inp  = el("input",{type:"tel",inputmode:"numeric",autocomplete:"off",
+    maxlength:"6",class:"pininput","aria-label":"PIN"});
+  const boxes = [];
+  for(let i=0;i<6;i++){ const b = el("span",{class:"pinbox"}); boxes.push(b); dots.append(b); }
+  const paint = ()=>{ const n = inp.value.length;
+    boxes.forEach((b,i)=>{ b.className = "pinbox" + (i<n ? " on" : (i===n ? " cur" : "")); }); };
+  inp.addEventListener("input",()=>{
+    inp.value = inp.value.replace(/[^0-9]/g,"").slice(0,6);
+    paint();
+    if(inp.value.length===6) onDone(inp.value);
+  });
+  inp.addEventListener("focus",paint);
+  wrap.append(dots,inp);
+  wrap.pin   = ()=>inp.value;
+  wrap.ring  = ()=>inp.focus();
+  wrap.wipe  = ()=>{ inp.value=""; paint(); inp.focus(); };
+  wrap.shake = ()=>{ wrap.classList.add("bad"); setTimeout(()=>wrap.classList.remove("bad"),430); };
+  paint();
+  return wrap;
+}
+
 /* ---------- ekran ustawień ---------- */
 function setupScreen(msg){
   const v = document.getElementById("view"); v.replaceChildren();
   const inTok = el("input",{type:"password",placeholder:"github_pat_…",value:GH.token||"",
     autocomplete:"off",spellcheck:"false"});
-  const inPin = el("input",{type:"password",inputmode:"numeric",autocomplete:"new-password",
-    placeholder:"min. 6 znaków, najlepiej słowo z cyframi"});
+  const padSet = pinPad(()=>connect());
   const inRepo = el("input",{type:"text",value:GH.owner+"/"+GH.repo});
   const inCal = el("input",{type:"text",value:GH.gcal||"",placeholder:"…apps.googleusercontent.com",
     autocomplete:"off",spellcheck:"false"});
@@ -1166,8 +1205,8 @@ function setupScreen(msg){
     GH.owner=m[0]; GH.repo=m[1]; GH.token=(inTok.value||"").trim();
     if(!GH.token){ out.textContent="Wklej token."; return; }
     GH.gcal=(inCal.value||"").trim();
-    const pin=(inPin.value||"").trim();
-    if(pin.length<6){ out.textContent="Ustaw PIN — co najmniej 6 znaków."; return; }
+    const pin=padSet.pin();
+    if(pin.length!==6){ out.textContent="Ustaw PIN — sześć cyfr."; padSet.ring(); return; }
     out.textContent="Szyfruję…";
     await deriveKey(pin, toB(crypto.getRandomValues(new Uint8Array(16))));
     out.textContent="Sprawdzam…";
@@ -1177,14 +1216,14 @@ function setupScreen(msg){
       : e.status===401 ? "Token odrzucony — sprawdź, czy skopiował się w całości."
       : "Nie udało się połączyć: "+e.message; }
   };
-  [inTok,inPin,inCal,inRepo].forEach(x=>
+  [inTok,inCal,inRepo].forEach(x=>
     x.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); connect(); } }));
   v.append(sec("Pierwsze uruchomienie",
     el("p",{class:"note"},"Planer trzyma dane w Twoim prywatnym repozytorium GitHub „planer”. "
       +"Wklej token dostępu — raz na tym urządzeniu."),
     msg ? el("p",{class:"err"},msg) : null,
     el("label",{class:"fld"},"Token GitHub",inTok),
-    el("label",{class:"fld"},"PIN do planera",inPin),
+    el("label",{class:"fld"},"PIN do planera — sześć cyfr",padSet),
     el("label",{class:"fld"},"Identyfikator Google (kalendarz) — już wpisany",inCal),
     adv,
     el("div",{class:"row"},
@@ -1197,35 +1236,38 @@ function setupScreen(msg){
   setTimeout(()=>inTok.focus(),50);
 }
 
-/* ---------- ekran PIN-u ---------- */
+/* ---------- ekran blokady ---------- */
 function unlockScreen(msg){
   const v = document.getElementById("view"); v.replaceChildren();
-  const inPin = el("input",{type:"password",inputmode:"numeric",autocomplete:"off",placeholder:"••••"});
-  const out = el("p",{class:"note"});
-  const go = async()=>{
-    GH.gcal=(inCal.value||"").trim();
-    const pin=(inPin.value||"").trim(); if(!pin) return;
-    out.textContent="Otwieram…";
-    let tok=null;
+  const out = el("p",{class:"note",style:"text-align:center;min-height:19px"},
+    msg || "Wpisz PIN, żeby otworzyć planer.");
+  let busy = false;
+  const pad = pinPad(async pin=>{
+    if(busy) return; busy = true;
+    out.textContent = "Otwieram…";
+    let tok = null;
     try{ await deriveKey(pin, SALT); tok = await unseal(VAULT); }
-    catch(e){ AESKEY=null; unlockScreen("Zły PIN."); return; }
-    GH.token=tok;
+    catch(e){
+      AESKEY = null; busy = false;
+      pad.shake(); pad.wipe(); out.textContent = "Zły PIN.";
+      return;
+    }
+    GH.token = tok;
     try{ await boot(false); }
-    catch(e){ S.ready=true; setupScreen(e.status===401
-      ? "Token odrzucony — wpisz nowy." : "Brak połączenia z GitHubem."); }
-  };
-  inPin.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); go(); } });
-  v.append(sec("Planer zamknięty",
-    el("p",{class:"note"},"Wpisz PIN, żeby otworzyć dane."),
-    msg ? el("p",{class:"err"},msg) : null,
-    el("label",{class:"fld"},"PIN",inPin),
-    el("div",{class:"row"},
-      el("button",{class:"btn",onclick:go},"Otwórz"),
-      el("button",{class:"ghost",onclick:()=>{ VAULT=null; GH.token=""; AESKEY=null;
+    catch(e){
+      busy = false; S.ready = true;
+      setupScreen(e.status===401 ? "Token odrzucony — wpisz nowy." : "Brak połączenia z GitHubem.");
+    }
+  });
+  const s = sec("Planer zamknięty", out, pad,
+    el("div",{class:"row",style:"justify-content:center;margin-top:4px"},
+      el("button",{class:"ghost",onclick:()=>{
+        VAULT = null; GH.token = ""; AESKEY = null;
         try{ localStorage.removeItem(TOK_KEY); }catch(e){}
-        setupScreen("Wpisz token jeszcze raz i ustaw nowy PIN."); }},"nie pamiętam PIN-u"),
-      out)));
-  setTimeout(()=>inPin.focus(),50);
+        setupScreen("Wpisz token jeszcze raz i ustaw nowy PIN."); }},"nie pamiętam PIN-u")));
+  s.className = "sec lock";
+  v.append(s);
+  setTimeout(()=>pad.ring(),60);
 }
 
 /* ---------- start ---------- */
