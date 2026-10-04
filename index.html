@@ -297,6 +297,15 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 :root[data-skin="mac"] label.fld{letter-spacing:.02em;font-size:11px;text-transform:none}
 :root[data-skin="mac"] #tabsbot button{font-size:11.5px}
 :root[data-skin="mac"] .pinbox{border-radius:7px}
+#fab{display:none}
+@media (max-width:720px){
+  #fab:not([hidden]){display:flex;position:fixed;right:14px;z-index:7;
+    bottom:calc(60px + env(safe-area-inset-bottom,0px));
+    align-items:center;gap:6px;border:0;border-radius:23px;padding:12px 18px;
+    background:var(--pink);color:#fff;font-size:14.5px;font-weight:600;
+    box-shadow:0 5px 16px rgba(0,0,0,.26)}
+  #fab:active{transform:scale(.96)}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .pin{position:relative;display:flex;justify-content:center;padding:10px 0 4px}
@@ -329,6 +338,7 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
     <div class="scroll"><div class="wrap" id="view"></div></div>
   </main>
 </div>
+<button id="fab" hidden></button>
 <nav id="tabsbot"></nav>
 
 <script>
@@ -354,6 +364,33 @@ const ST = ["todo","part","done","canc","moved","later","event","note"];
 const STMARK = {todo:"•",part:"◩",done:"✓",canc:"×",moved:">",later:"<",event:"○",note:"–"};
 const STNAME = {todo:"zadanie",part:"zaczęte / minimum",done:"zrobione",canc:"anulowane",
   moved:"przeniesione",later:"kiedyś / może",event:"wydarzenie",note:"notatka"};
+const STCYC = {todo:1,part:1,done:1,canc:1,moved:1,later:1,event:0,note:0};
+const FABR = {areas:null, ST:null, STMARK:null, STNAME:null, STCYC:null};
+function cfgZapamietajFabryczne(){
+  FABR.areas = JSON.parse(JSON.stringify(AREAS));
+  FABR.ST = [...ST]; FABR.STMARK = {...STMARK};
+  FABR.STNAME = {...STNAME}; FABR.STCYC = {...STCYC};
+}
+function cfgZastosuj(c){
+  const a = (c && c.areas && Object.keys(c.areas).length) ? c.areas : FABR.areas;
+  Object.keys(AREAS).forEach(k=>delete AREAS[k]);
+  Object.keys(a).forEach(k=>AREAS[k] = {...a[k]});
+  const m = (c && c.marks) || {};
+  const lista = (m.ST && m.ST.length) ? m.ST : FABR.ST;
+  ST.length = 0; lista.forEach(x=>ST.push(x));
+  Object.keys(STMARK).forEach(k=>delete STMARK[k]);
+  Object.assign(STMARK, m.STMARK || FABR.STMARK);
+  Object.keys(STNAME).forEach(k=>delete STNAME[k]);
+  Object.assign(STNAME, m.STNAME || FABR.STNAME);
+  Object.keys(STCYC).forEach(k=>delete STCYC[k]);
+  Object.assign(STCYC, m.STCYC || FABR.STCYC);
+}
+function cfgZapisz(){
+  save("cfg/ui", {areas:JSON.parse(JSON.stringify(AREAS)),
+    marks:{ST:[...ST], STMARK:{...STMARK}, STNAME:{...STNAME}, STCYC:{...STCYC}}});
+}
+function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
+cfgZapamietajFabryczne();
 const HABITS = [["Sz","szydełko"],["Dz","dziennik"],["Wc","wcierka"],["Su","suplementy"],["Wo","woda"],["Al","nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const HOME = [["pranie","pranie"],["zmyw","zmywarka"],["glowa","mycie głowy"],
@@ -378,7 +415,8 @@ const MONTHS = ["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca",
 const MONTHN = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień",
   "Wrzesień","Październik","Listopad","Grudzień"];
 const VIEWS = [["dzis","Dziś"],["tydzien","Tydzień"],["miesiac","Miesiąc"],
-  ["trackery","Trackery"],["cele","Cele"],["listy","Listy"],["legenda","Legenda"]];
+  ["trackery","Trackery"],["cele","Cele"],["listy","Listy"],["legenda","Legenda"],
+  ["ustawienia","Ustawienia"]];
 
 /* ---------- daty ---------- */
 const pad = n => String(n).padStart(2,"0");
@@ -462,6 +500,7 @@ function resub(){
   const lo=[m+"-01", monday(d)].sort()[0];
   const hi=[m+"-31", addD(monday(d),6)].sort()[1];
   const on=(ref,fn)=>S.subs.push(ref.onSnapshot(fn, ()=>{}));
+  on(S.db.doc("cfg/ui"), s=>{ cfgZastosuj(s.exists?s.data():null); render(); });
   on(S.db.doc("days/"+d),    s=>{S.day[d]=s.exists?s.data():null; render()});
   on(S.db.doc("weeks/"+w),   s=>{S.week[w]=s.exists?s.data():null; render()});
   on(S.db.doc("habits/"+m),  s=>{S.habits[m]=s.exists?s.data():{}; render()});
@@ -744,7 +783,8 @@ function vDzis(){
     const r=el("div",{class:"task "+t.st});
     r.append(el("button",{class:"mark",style:"color:"+(AREAS[t.area]||AREAS.Z).c,
       title:STNAME[t.st]+" — kliknij, by zmienić",
-      onclick:()=>upd(t.id,{st:ST[(ST.indexOf(t.st)+1)%6]})}, STMARK[t.st]||"•"));
+      onclick:()=>{const c=cyklZnakow();
+        upd(t.id,{st:c[(c.indexOf(t.st)+1)%c.length]||c[0]})}}, STMARK[t.st]||"•"));
     const span=el("button",{class:"ttxt",title:"Kliknij, by edytować",onclick:()=>{
       const inp=el("input",{type:"text",value:t.txt});
       inp.addEventListener("blur",()=>upd(t.id,{txt:inp.value.trim()||t.txt}));
@@ -766,7 +806,7 @@ function vDzis(){
   major.forEach(t=>list.append(taskRow(t)));
   if(minor.length){ list.append(el("div",{class:"divider"})); minor.forEach(t=>list.append(taskRow(t))); }
 
-  const inp=el("input",{type:"text",placeholder:"Nowe zadanie…"});
+  const inp=el("input",{type:"text",placeholder:"Nowe zadanie…",id:"nowezadanie"});
   let na="Z";
   const addT=()=>{const v=inp.value.trim(); if(!v)return;
     saveDay(d,{tasks:[...D.tasks,{id:uid(),txt:v,st:"todo",area:na,minor:false}]}); inp.value=""};
@@ -1109,21 +1149,220 @@ function vLegenda(){
     el("div",{class:"note"},"Sailor Pro Gear Slim · Taccia Budounezu — dziennik"),
     el("div",{class:"note"},"Uni One Sesame Grey — linie i osie"));
 
-  const c8=sec("Wygląd");
-  const skins=[["papier","Papier","kratka, szeryfy, kolory planera"],
-               ["mac","System","płaskie karty, krój systemowy, bez kratki"]];
-  skins.forEach(([k,n,d])=>c8.append(el("div",{class:"row",style:"align-items:flex-start"},
-    el("button",{class:"btn"+(SKIN.get()===k?" on":""),style:"min-width:74px",
-      onclick:()=>{SKIN.set(k);render()}},n),
-    el("span",{class:"note",style:"flex:1;min-width:0"},d))));
-  const motywy=[["auto","Jak system"],["light","Jasny"],["dark","Ciemny"]];
-  c8.append(el("div",{class:"row"},
-    el("span",{class:"note",style:"min-width:74px"},"Motyw"),
-    ...motywy.map(([k,n])=>el("button",{class:"btn"+(THEME.get()===k?" on":""),
-      onclick:()=>{THEME.set(k);render()}},n))));
-  c8.append(el("p",{class:"note"},"Wybór zostaje na tym urządzeniu. Treść i logika są te same w obu."));
+  return {L:[c1,c2,c3,c7], R:[c4,c5,c6], even:true};
+}
 
-  return {L:[c8,c1,c2,c3,c7], R:[c4,c5,c6], even:true};
+/* ---------- informacje o synchronizacji ---------- */
+function kiedys(ts){
+  if(!ts) return null;
+  const m = Math.round((Date.now()-ts)/60000);
+  const g = new Date(ts).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
+  const opis = m < 1 ? "przed chwilą" : m < 60 ? (m+" min temu")
+             : m < 1440 ? (Math.round(m/60)+" godz. temu") : (Math.round(m/1440)+" dni temu");
+  const dzien = new Date(ts).toDateString() === new Date().toDateString()
+    ? "" : (new Date(ts).toLocaleDateString("pl-PL",{day:"numeric",month:"long"})+", ");
+  return dzien + g + " · " + opis;
+}
+function syncInfo(){
+  return {gdzie:"GitHub · "+GH.owner+"/"+GH.repo,
+    zapis:kiedys(SAVED_AT), pobrane:kiedys(PULLED_AT),
+    kolejka:DIRTY.size, siec:navigator.onLine, blad:SAVE_ERR};
+}
+function syncTeraz(){
+  if(!navigator.onLine){ return; }
+  flush().then(pullAll).then(render).catch(()=>{});
+}
+function syncPolaczenie(){
+  const box = el("div",{});
+  const w = (a,b)=>el("div",{class:"row"},
+    el("span",{class:"note",style:"min-width:148px"},a), el("span",{},b));
+  const kal = !GH.gcal ? "brak identyfikatora"
+            : gValid() ? "połączony" : "trzeba połączyć";
+  box.append(
+    w("Repozytorium", GH.owner+"/"+GH.repo),
+    w("Token", GH.token ? "wpisany i zaszyfrowany" : "brak"),
+    w("Kalendarz Google", kal),
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>{ S.ready=true; setupScreen(); }},"Zmień token"),
+      GH.gcal && !gValid()
+        ? el("button",{class:"btn",onclick:()=>calLoad(true,true)},"Połącz Kalendarz Google")
+        : null));
+  return box;
+}
+async function odswiezAplikacje(){
+  try{ const ks = await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); }catch(e){}
+  try{ const rs = await navigator.serviceWorker.getRegistrations();
+       await Promise.all(rs.map(r=>r.unregister())); }catch(e){}
+  location.reload();
+}
+
+/* ---------- Ustawienia ---------- */
+function hexZ(wartosc){                 // "var(--s)" albo "#ab12cd" -> realny kolor
+  const w = (wartosc||"").trim();
+  if(!w.startsWith("var(")) return w;
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(w.slice(4,-1).trim()).trim();
+  return v || "#888888";
+}
+function vUstawienia(){
+  const kafle=[];
+  const wiersz = (etykieta, wartosc, klasa) => el("div",{class:"row"},
+    el("span",{class:"note",style:"min-width:148px"},etykieta),
+    el("span",{class:klasa||""},wartosc));
+
+  /* --- synchronizacja --- */
+  const inf = syncInfo();
+  const sy = sec("Synchronizacja");
+  sy.append(
+    wiersz("Stan", inf.siec ? (inf.kolejka ? "wysyłam zmiany…" : "wszystko wysłane")
+                            : "bez sieci — zmiany czekają"),
+    wiersz("Ostatni zapis", inf.zapis || "jeszcze nic nie zapisano"),
+    wiersz("Ostatnie pobranie", inf.pobrane || "—"),
+    wiersz("Czeka w kolejce", inf.kolejka ? (inf.kolejka+" plik(ów)") : "nic"),
+    wiersz("Gdzie są dane", inf.gdzie),
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>{syncTeraz();render()}},"Synchronizuj teraz"),
+      el("span",{class:"note"},"Planer zapisuje sam — to tylko przyspiesza.")));
+  if(inf.blad) sy.append(el("p",{class:"err"},inf.blad));
+  kafle.push(sy);
+
+  /* --- wygląd --- */
+  const wy = sec("Wygląd");
+  [["mac","System","układ aplikacji systemowej, grupowane listy"],
+   ["papier","Papier","kratka, szeryfy, kolory planera papierowego"]]
+    .forEach(([k,n,d])=>wy.append(el("div",{class:"row",style:"align-items:flex-start"},
+      el("button",{class:"btn"+(SKIN.get()===k?" on":""),style:"min-width:84px",
+        onclick:()=>{SKIN.set(k);render()}},n),
+      el("span",{class:"note",style:"flex:1;min-width:0"},d))));
+  wy.append(el("div",{class:"row"},
+    el("span",{class:"note",style:"min-width:84px"},"Motyw"),
+    ...[["auto","Jak system"],["light","Jasny"],["dark","Ciemny"]].map(([k,n])=>
+      el("button",{class:"btn"+(THEME.get()===k?" on":""),
+        onclick:()=>{THEME.set(k);render()}},n))));
+  wy.append(el("p",{class:"note"},"Wygląd i motyw zostają na tym urządzeniu."));
+  kafle.push(wy);
+
+  /* --- oznaczenia --- */
+  const zn = sec("Oznaczenia");
+  ST.forEach(k=>{
+    const mk=el("input",{type:"text",value:STMARK[k]||"",maxlength:"2",
+      style:"width:46px;flex:0 0 46px;text-align:center"});
+    const nm=el("input",{type:"text",value:STNAME[k]||"",
+      style:"width:auto;flex:1 1 150px;min-width:0"});
+    const cy=el("input",{type:"checkbox"}); cy.checked=!!STCYC[k];
+    mk.addEventListener("change",()=>{STMARK[k]=mk.value||"•"; cfgZapisz(); render();});
+    nm.addEventListener("change",()=>{STNAME[k]=nm.value; cfgZapisz(); render();});
+    cy.addEventListener("change",()=>{STCYC[k]=cy.checked?1:0; cfgZapisz(); render();});
+    zn.append(el("div",{class:"row"},mk,nm,
+      el("label",{class:"row",style:"gap:5px;flex:0 0 auto"},cy,
+        el("span",{class:"note"},"w cyklu")),
+      el("button",{class:"ghost",title:"Usuń oznaczenie",onclick:()=>{
+        if(ST.length<2) return;
+        if(!confirm("Usunąć oznaczenie „"+(STNAME[k]||k)+"”? Zadania z nim pokażą kropkę.")) return;
+        ST.splice(ST.indexOf(k),1); delete STMARK[k]; delete STNAME[k]; delete STCYC[k];
+        cfgZapisz(); render();
+      }},"✕")));
+  });
+  zn.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      const id="z"+uid();
+      ST.push(id); STMARK[id]="◆"; STNAME[id]="nowe oznaczenie"; STCYC[id]=1;
+      cfgZapisz(); render();
+    }},"Dodaj oznaczenie"),
+    el("button",{class:"ghost",onclick:()=>{
+      if(!confirm("Przywrócić oznaczenia fabryczne?")) return;
+      cfgZastosuj({areas:JSON.parse(JSON.stringify(AREAS))}); cfgZapisz(); render();
+    }},"przywróć fabryczne")));
+  zn.append(el("p",{class:"note"},
+    "„W cyklu” znaczy, że klikanie kratki przy zadaniu przechodzi przez to oznaczenie. "
+    +"Kolejność na liście to kolejność klikania."));
+  kafle.push(zn);
+
+  /* --- obszary --- */
+  const ob = sec("Obszary i kolory");
+  Object.keys(AREAS).forEach(k=>{
+    const a=AREAS[k];
+    const kol=el("input",{type:"color",value:hexZ(a.c),
+      style:"width:46px;flex:0 0 46px;padding:2px;height:28px"});
+    const nm=el("input",{type:"text",value:a.n||"",
+      style:"width:auto;flex:1 1 130px;min-width:0"});
+    const nr=el("input",{type:"text",value:a.nr||"",style:"width:64px;flex:0 0 64px"});
+    kol.addEventListener("change",()=>{AREAS[k].c=kol.value; cfgZapisz(); render();});
+    nm.addEventListener("change",()=>{AREAS[k].n=nm.value; cfgZapisz(); render();});
+    nr.addEventListener("change",()=>{AREAS[k].nr=nr.value; cfgZapisz(); render();});
+    ob.append(el("div",{class:"row"},
+      el("b",{style:"width:18px;flex:0 0 18px;font-weight:600"},k),kol,nm,
+      el("span",{class:"note"},"Triplus"),nr,
+      el("button",{class:"ghost",title:"Usuń obszar",onclick:()=>{
+        if(Object.keys(AREAS).length<2) return;
+        if(!confirm("Usunąć obszar „"+(a.n||k)+"”? Wpisy zostaną, ale bez koloru.")) return;
+        delete AREAS[k]; cfgZapisz(); render();
+      }},"✕")));
+  });
+  ob.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      const uzyte=Object.keys(AREAS);
+      const wolna=[..."ABCDEFHIJKLNPQUVWXY"].find(x=>!uzyte.includes(x));
+      if(!wolna) return;
+      AREAS[wolna]={n:"nowy obszar",c:"#777777",nr:""};
+      cfgZapisz(); render();
+    }},"Dodaj obszar"),
+    el("button",{class:"ghost",onclick:()=>{
+      if(!confirm("Przywrócić obszary fabryczne?")) return;
+      cfgZastosuj({marks:{ST:[...ST],STMARK:{...STMARK},STNAME:{...STNAME},STCYC:{...STCYC}}});
+      cfgZapisz(); render();
+    }},"przywróć fabryczne")));
+  ob.append(el("p",{class:"note"},
+    "Litera to klucz zapisany przy zadaniach i blokach — zmieniasz nazwę, kolor i numer pisaka. "
+    +"Wybrany kolor jest ten sam w trybie jasnym i ciemnym."));
+  kafle.push(ob);
+
+  /* --- aplikacja --- */
+  const ap = sec("Aplikacja");
+  ap.append(
+    wiersz("Wersja", (typeof VER==="string" ? VER : "podgląd")),
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>odswiezAplikacje()},"Odśwież aplikację"),
+      el("span",{class:"note"},"Pobiera najnowszą wersję i czyści pamięć podręczną.")),
+    el("p",{class:"note"},
+      "Gdy coś zmienię, przycisk „Nowa wersja” pojawia się też sam w pasku u góry."));
+  const pol = syncPolaczenie();
+  if(pol) ap.append(pol);
+  kafle.push(ap);
+
+  return {W:kafle};
+}
+
+/* ---------- przycisk dodawania na telefonie ---------- */
+function fabDla(){
+  if(S.view==="dzis" || S.view==="tydzien") return {t:"+ Zadanie", f:()=>{
+    if(S.view!=="dzis"){ S.view="dzis"; render(); }
+    setTimeout(()=>{ const i=document.getElementById("nowezadanie");
+      if(i){ i.scrollIntoView({block:"center"}); i.focus(); } },60);
+  }};
+  if(S.view==="miesiac" && typeof calEnsure==="function") return {t:"+ Wydarzenie", f:async()=>{
+    S.view="dzis"; render();
+    if(!await calEnsure()) return;
+    calEdit={date:S.date,sd:S.date,ed:S.date,st:"09:00",et:"10:00",notify:true};
+    S.cal.msg=null; render();
+    setTimeout(()=>{ const s=[...document.querySelectorAll(".sec")]
+      .find(x=>x.querySelector("h3") && x.querySelector("h3").textContent==="Kalendarz Google");
+      if(s) s.scrollIntoView({block:"center"}); },60);
+  }};
+  if(S.view==="cele") return {t:"+ Cel", f:()=>{
+    S.db&&S.db.collection("goals").add({name:"Nowy cel",area:"T",ord:S.goals.length+1,
+      kiedys:"",rok:"",kwartal:"",miesiac:"",tydzien:"",dzien:""});
+  }};
+  if(S.view==="listy") return {t:"+ Lista", f:()=>{
+    S.db&&S.db.collection("lists").add({title:"Nowa lista",ord:S.lists.length+1,items:[]});
+  }};
+  return null;
+}
+function buildFab(){
+  const b=document.getElementById("fab"); if(!b) return;
+  const d=S.db ? fabDla() : null;
+  if(!d){ b.hidden=true; b.onclick=null; return; }
+  b.hidden=false; b.textContent=d.t; b.onclick=d.f;
 }
 
 /* ---------- powłoka ---------- */
@@ -1160,19 +1399,8 @@ function buildBar(){
       el("span",{class:"sub"},String(y)),el("span",{class:"spacer"}),
       B("‹",()=>shift(-1),"Poprzedni miesiąc"),B("›",()=>shift(1),"Następny miesiąc"));
   }else{
-    bar.append(el("h2",{},{cele:"Cele",listy:"Listy",legenda:"Legenda"}[S.view]),
-      el("span",{class:"spacer"}));
-  }
-  if(S.newver){
-    bar.append(el("button",{class:"btn on",title:"Wyszła nowa wersja planera",
-      onclick:()=>location.reload()},"Nowa wersja — odśwież"));
-  }
-  if(S.db){
-    bar.append(el("button",{class:"btn icon",id:"sync",title:"Stan zapisu",
-      onclick:()=>{ DIRTY.size ? flush() : pullAll(); }},"zapisane"),
-      el("button",{class:"btn icon",title:"Ustawienia połączenia",
-        onclick:()=>{ S.ready=true; setupScreen(); }},"⚙"));
-    setTimeout(status,0);
+    bar.append(el("h2",{},{cele:"Cele",listy:"Listy",legenda:"Legenda",
+      ustawienia:"Ustawienia"}[S.view]||"Planer"));
   }
 }
 function grow(){
@@ -1183,7 +1411,7 @@ function grow(){
   });
 }
 function render(){
-  buildTabs(); buildBar();
+  buildTabs(); buildBar(); buildFab();
   const v=document.getElementById("view");
   if(S.ready && !S.db){          // zamknięty planer: zawsze PIN albo ustawienia, nic poza tym
     const locked = !!VAULT && !AESKEY;
@@ -1196,8 +1424,8 @@ function render(){
   v.replaceChildren();
   if(!S.ready){ v.append(sec("Planer",el("p",{class:"note"},"Wczytywanie…"))); return; }
   if(S.canWrite===false) v.append(el("p",{class:"err"},"Tryb tylko do odczytu — zmiany nie zapiszą się."));
-  const r={dzis:vDzis,tydzien:vTydzien,miesiac:vMiesiac,trackery:vTrackery,
-    cele:vCele,listy:vListy,legenda:vLegenda}[S.view]();
+  const r=({dzis:vDzis,tydzien:vTydzien,miesiac:vMiesiac,trackery:vTrackery,
+    cele:vCele,listy:vListy,legenda:vLegenda,ustawienia:vUstawienia}[S.view]||vDzis)();
   if(r.W){ v.append(...r.W); requestAnimationFrame(grow); return; }
   v.append(el("div",{class:"cols"+(r.even?" even":"")},
     el("div",{class:"colbox"},...r.L), el("div",{class:"colbox"},...r.R)));
@@ -1210,7 +1438,7 @@ const GH = {owner:"KlaudiaDobrolinska", repo:"planer", token:"", branch:"main", 
 const FILES = {};            // ścieżka pliku -> {sha, data}
 const SUBS  = [];            // subskrypcje w pamięci
 const DIRTY = new Set();     // pliki do zapisania
-let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
+let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false, PULLED_AT = 0;
 
 const TOK_KEY = "planer.gtok";
 const SNAP_KEY = "planer.snap";
@@ -1234,7 +1462,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261004-235018";
+const VER = "20261004-235828";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1516,7 +1744,7 @@ function unlockScreen(msg){
 
 /* ---------- start ---------- */
 const DATA_FILES = ["data/goals.json","data/lists.json","data/weeks.json",
-  "data/habits.json","data/health.json"];
+  "data/habits.json","data/health.json","data/cfg.json"];
 async function boot(fromSetup){
   const month = S.month;
   const files = DATA_FILES.concat(["data/days-"+month+".json"]);
@@ -1531,7 +1759,7 @@ async function boot(fromSetup){
     }
   }
   S.offline = bezSieci;
-  if(!bezSieci) snapLater();
+  if(!bezSieci){ PULLED_AT = Date.now(); snapLater(); }
   if(fromSetup) await cfgSave();
   await gRestore();
   S.db = {doc:docRef, collection:(p)=>colRef(p)};
@@ -1541,7 +1769,8 @@ async function boot(fromSetup){
 async function pullAll(){
   if(PULLING || DIRTY.size || SAVING) return;
   PULLING = true; status();
-  try{ for(const f of Object.keys(FILES)) await pull(f); fire(); snapLater(); }catch(e){}
+  try{ for(const f of Object.keys(FILES)) await pull(f); PULLED_AT = Date.now();
+       fire(); snapLater(); }catch(e){}
   PULLING = false; status();
 }
 render();
