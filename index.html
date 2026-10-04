@@ -1006,7 +1006,7 @@ function vLegenda(){
     el("span",{class:"note",style:"flex:1;min-width:0"},d))));
   c8.append(el("p",{class:"note"},"Wybór zostaje na tym urządzeniu. Treść i logika są te same w obu."));
 
-  return {L:[c1,c2,c3,c7], R:[c8,c4,c5,c6], even:true};
+  return {L:[c8,c1,c2,c3,c7], R:[c4,c5,c6], even:true};
 }
 
 /* ---------- powłoka ---------- */
@@ -1088,7 +1088,7 @@ const DIRTY = new Set();     // pliki do zapisania
 let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
 
 const TOK_KEY = "planer.gtok";
-const VER = "20261004-232913";
+const VER = "20261004-233014";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
