@@ -230,7 +230,12 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 @media (max-width:720px){
   #side{display:none}
   #shell{flex-direction:column}
-  .scroll{padding:14px 14px 20px}
+  .scroll{padding:14px 14px 92px}          /* miejsce na przycisk dodawania */
+  .task{min-height:38px}                    /* wygodniejsze trafianie palcem */
+  .mark{width:26px;flex:0 0 26px;font-size:15px}
+  .cell{min-width:30px;height:30px}
+  .tb{font-size:13px}
+  #tabsbot button{padding:7px 5px;font-size:12px}
   header.bar{padding:10px 14px;align-items:center}
   header.bar>.spacer{flex:0 0 100%;height:0;margin:0}
   #tabsbot{display:flex;position:sticky;bottom:0;background:var(--side);
@@ -1462,7 +1467,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261004-235828";
+const VER = "20261005-000004";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
