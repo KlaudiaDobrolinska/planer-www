@@ -195,6 +195,9 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .mini .mday.wtyg{background:var(--pink-soft)}
 .mini .mday.dzisiaj{box-shadow:inset 0 0 0 1px var(--pink)}
 .mini .mday.wybrany{background:var(--pink);color:#fff;font-weight:600}
+.przep{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;line-height:1.55;background:var(--paper-2);border:1px solid var(--line-2);
+  border-radius:7px;padding:8px 10px;margin:0;overflow-x:auto}
 .kroklicz{font-size:10px;color:#fff;background:var(--ink);border-radius:9px;padding:1px 6px;
   letter-spacing:0;text-transform:none;flex:0 0 auto}
 .tin{width:78px;flex:0 0 auto}
@@ -397,6 +400,7 @@ function cfgZapamietajFabryczne(){
   FABR.HABITS = HABITS.map(h=>[...h]);
   FABR.KOTWICE = KOTWICE.map(k=>({...k, dni:[...k.dni]}));
   FABR.TERMINY = TERMINY.map(x=>({...x}));
+  FABR.SZABLONY = [];
 }
 function cfgZastosuj(c){
   const a = (c && c.areas && Object.keys(c.areas).length) ? c.areas : FABR.areas;
@@ -417,18 +421,22 @@ function cfgZastosuj(c){
   KOTWICE.length = 0; kt.forEach(x=>KOTWICE.push({...x, dni:[...(x.dni||[])]}));
   const tm = (c && c.terminy) ? c.terminy : FABR.TERMINY;
   TERMINY.length = 0; tm.forEach(x=>TERMINY.push({...x}));
+  const sz = (c && c.szablony) ? c.szablony : FABR.SZABLONY;
+  SZABLONY.length = 0; sz.forEach(x=>SZABLONY.push(JSON.parse(JSON.stringify(x))));
 }
 function cfgZapisz(){
   save("cfg/ui", {areas:JSON.parse(JSON.stringify(AREAS)),
     marks:{ST:[...ST], STMARK:{...STMARK}, STNAME:{...STNAME}, STCYC:{...STCYC}},
     habits:HABITS.map(h=>[...h]),
     kotwice:KOTWICE.map(k=>({...k, dni:[...k.dni]})),
-    terminy:TERMINY.map(x=>({...x}))});
+    terminy:TERMINY.map(x=>({...x})),
+    szablony:JSON.parse(JSON.stringify(SZABLONY))});
 }
 function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
 const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],["Su","Suplementy"],["Wo","Woda"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
+const SZABLONY = [];           // {nazwa, typ, tasks:[...], blocks:[...]}
 const KOTWICE = [                       // zadania, które pojawiają się same
   {dni:[1,2,3,4,5,6,7], txt:"Leki",                 area:"Z"},
   {dni:[1],             txt:"Lek tygodniowy",       area:"Z"},
@@ -1063,6 +1071,31 @@ function vDzis(){
   Object.entries(DAYTYPES).forEach(([k,desc])=>types.append(el("button",{class:"btn"+(D.type===k?" on":""),
     title:desc,onclick:()=>saveDay(d,{type:D.type===k?"":k})},k)));
   const secTyp=sec("Typ dnia",types,el("p",{class:"note"},D.type?DAYTYPES[D.type]:"Wybierz, jak wygląda ten dzień."));
+
+  const secSzab=sec("Szablony dnia");
+  if(!SZABLONY.length) secSzab.append(el("p",{class:"note"},
+    "Brak szablonów. Ułóż typowy dzień i zapisz go — potem wstawisz jednym kliknięciem."));
+  const rzSz=el("div",{class:"row"});
+  SZABLONY.forEach((sz,i)=>rzSz.append(el("button",{class:"btn",
+    title:"Wstaw do tego dnia: "+((sz.tasks||[]).length)+" zadań, "+((sz.blocks||[]).length)+" bloków",
+    onclick:()=>{
+      if(!confirm("Wstawić szablon „"+sz.nazwa+"” do tego dnia? Dotychczasowe wpisy zostaną.")) return;
+      saveDay(d,{
+        type: sz.typ || D.type,
+        tasks:[...D.tasks, ...(sz.tasks||[]).map(x=>({id:uid(), txt:duza(x.txt), st:"todo",
+          area:x.area||"Z", minor:!!x.minor}))],
+        blocks:[...D.blocks, ...(sz.blocks||[]).map(x=>({id:uid(), s:x.s, e:x.e,
+          area:x.area||"T", txt:duza(x.txt||""), proj:"", done:false}))]});
+    }}, sz.nazwa)));
+  secSzab.append(rzSz, el("div",{class:"row"},
+    el("button",{class:"ghost",onclick:()=>{
+      const nazwa=prompt("Nazwa szablonu (np. Dzień gabinetowy, Dzień N):","");
+      if(!nazwa) return;
+      SZABLONY.push({nazwa:duza(nazwa), typ:D.type||"",
+        tasks:D.tasks.filter(x=>!x.kotwica).map(x=>({txt:x.txt, area:x.area, minor:!!x.minor})),
+        blocks:D.blocks.map(x=>({s:x.s, e:x.e, area:x.area, txt:x.txt||""}))});
+      cfgZapisz(); render();
+    }},"zapisz ten dzień jako szablon")));
   const secMust=sec("Musi się udać",
     textRow(D.must,"Jedna rzecz, po której dzień jest udany",v=>saveDay(d,{must:v})));
 
@@ -1152,7 +1185,8 @@ function vDzis(){
   });
 
   const mk=miniKalendarz(d);
-  const prawa = showCal ? [mk,secMust,secTyp,secTerm,secCal] : [mk,secMust,secTyp,secTerm];
+  const prawa = showCal ? [mk,secMust,secTyp,secSzab,secTerm,secCal]
+                       : [mk,secMust,secTyp,secSzab,secTerm];
   return {L:[secSzyb,secTasks,secBloki,secDz], R:prawa};
 }
 
@@ -1234,7 +1268,50 @@ function vTydzien(){
   });
   q.append(el("p",{class:"note"},"Górna granica, nie norma. Bez zjazdu: e-book 3 · szkolenie 2 · studia 1 · drobnice 2."));
 
-  return {L:[dl,hw,rv], R:[miniKalendarz(S.date),t3,q]};
+  /* --- do przepisania do B6 --- */
+  const pp=sec("Do przepisania");
+  const tekstDnia=(ds)=>{
+    const D = S.mdays[ds] || (ds===S.date ? S.day[ds] : null) || {};
+    const ta=(D.tasks||[]), bl=(D.blocks||[]);
+    if(!ta.length && !bl.length && !D.must && !D.journal) return null;
+    const dd=parse(ds);
+    const linie=[DOW[dowIdx(ds)]+" "+dd.getDate()+"."+pad(dd.getMonth()+1)
+      + (D.type ? " · "+D.type : "")];
+    if(D.must) linie.push("! "+D.must);
+    ta.forEach(x=>linie.push((STMARK[x.st]||"•")+" "+x.txt
+      + (x.note ? "  ("+x.note.replace(/\s+/g," ")+")" : "")));
+    bl.forEach(x=>linie.push("□ "+x.s+"–"+x.e+" "+(x.txt||"")
+      + (x.proj?" · "+x.proj:"") + (x.done?" ✓":"")));
+    if(D.journal) linie.push("~ "+D.journal.replace(/\s+/g," "));
+    return linie.join("\n");
+  };
+  const doPrzep = days.filter(ds=>{
+    const D = S.mdays[ds] || (ds===S.date ? S.day[ds] : null) || {};
+    return !D.przepisane && tekstDnia(ds);
+  });
+  if(!doPrzep.length) pp.append(el("p",{class:"note"},
+    "Wszystko z tego tygodnia jest przepisane. Nowe wpisy pojawią się tutaj same."));
+  doPrzep.forEach(ds=>{
+    const pre=el("pre",{class:"przep"}, tekstDnia(ds));
+    pp.append(el("div",{},pre,
+      el("div",{class:"row"},
+        el("button",{class:"ghost",onclick:async()=>{
+          try{ await navigator.clipboard.writeText(tekstDnia(ds)); }catch(e){}
+        }},"kopiuj"),
+        el("button",{class:"ghost",onclick:async()=>{
+          let dane={}; try{ const s=await S.db.doc("days/"+ds).get(); if(s.exists) dane=s.data()||{}; }catch(e){}
+          await S.db.doc("days/"+ds).set({...dane, przepisane:true});
+        }},"przepisane ✓"))));
+  });
+  if(doPrzep.length) pp.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:async()=>{
+      const caly=doPrzep.map(tekstDnia).join("\n\n");
+      try{ await navigator.clipboard.writeText(caly); }catch(e){}
+    }},"Kopiuj cały tydzień")));
+  pp.append(el("p",{class:"note"},
+    "Dzień znika z listy, gdy oznaczysz go jako przepisany. Zmiana w dniówce go nie przywraca."));
+
+  return {L:[dl,hw,pp,rv], R:[miniKalendarz(S.date),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -1732,6 +1809,18 @@ function pinNowy(){
   setTimeout(()=>pad.ring(), 60);
 }
 
+function eksportDanych(){
+  const dane = {};
+  Object.keys(FILES).forEach(f => { dane[f] = (FILES[f]||{}).data || {}; });
+  const tresc = JSON.stringify({planer:"kopia", kiedy:new Date().toISOString(), pliki:dane}, null, 1);
+  const url = URL.createObjectURL(new Blob([tresc], {type:"application/json"}));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "planer-kopia-" + key(new Date()) + ".json";
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
 async function odswiezAplikacje(){
   try{ const ks = await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); }catch(e){}
   try{ const rs = await navigator.serviceWorker.getRegistrations();
@@ -1951,6 +2040,23 @@ function vUstawienia(){
     "Terminy pokazują się w widoku Dziś z odliczaniem. Trzy dni przed — na czerwono."));
   kafle.push(tm);
 
+  /* --- szablony --- */
+  const szb = sec("Szablony dnia");
+  if(!SZABLONY.length) szb.append(el("p",{class:"note"},
+    "Szablon zapisujesz w widoku Dziś — przycisk „zapisz ten dzień jako szablon”."));
+  SZABLONY.forEach((sz,i)=>{
+    const nm=el("input",{type:"text",value:sz.nazwa||"",
+      style:"width:auto;flex:1 1 150px;min-width:0"});
+    nm.addEventListener("change",()=>{SZABLONY[i].nazwa=duza(nm.value); cfgZapisz(); render();});
+    szb.append(el("div",{class:"row"},nm,
+      el("span",{class:"note"},((sz.tasks||[]).length)+" zad. · "+((sz.blocks||[]).length)+" bl."),
+      el("button",{class:"ghost",title:"Usuń szablon",onclick:()=>{
+        if(!confirm("Usunąć szablon „"+sz.nazwa+"”?")) return;
+        SZABLONY.splice(i,1); cfgZapisz(); render();
+      }},"✕")));
+  });
+  kafle.push(szb);
+
   /* --- aplikacja --- */
   const ap = sec("Aplikacja");
   ap.append(
@@ -1958,6 +2064,9 @@ function vUstawienia(){
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:()=>odswiezAplikacje()},"Odśwież aplikację"),
       el("span",{class:"note"},"Pobiera najnowszą wersję i czyści pamięć podręczną.")),
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>eksportDanych()},"Pobierz kopię wszystkiego"),
+      el("span",{class:"note"},"Jeden plik z całym planerem — na wszelki wypadek.")),
     el("p",{class:"note"},
       "Gdy coś zmienię, przycisk „Nowa wersja” pojawia się też sam w pasku u góry."));
   const pol = syncPolaczenie();
@@ -2099,7 +2208,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-011114";
+const VER = "20261005-011321";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
