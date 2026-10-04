@@ -1227,17 +1227,17 @@ function qrRysuj(box, tekst){
   const rysuj = ()=>{
     try{
       const q = qrcode(0, "L"); q.addData(tekst); q.make();
-      box.innerHTML = q.createSvgTag({cellSize:4, margin:2, scalable:true});
+      box.innerHTML = q.createSvgTag({cellSize:6, margin:3, scalable:true});
       const svg = box.querySelector("svg");
-      if(svg){ svg.setAttribute("width","216"); svg.setAttribute("height","216");
-               svg.style.width="216px"; svg.style.height="216px"; }
+      if(svg){ svg.setAttribute("width","260"); svg.setAttribute("height","260");
+               svg.style.width="260px"; svg.style.height="260px"; }
     }catch(e){ box.textContent = "Nie udało się narysować kodu."; }
   };
   if(window.qrcode) return rysuj();
   const s = document.createElement("script");
-  s.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";
+  s.src = "qrcode.js";
   s.onload = rysuj;
-  s.onerror = ()=>{ box.textContent = "Brak internetu — kod QR wymaga sieci."; };
+  s.onerror = ()=>{ box.textContent = "Nie udało się wczytać rysownika kodów."; };
   document.head.append(s);
 }
 function syncTransfer(){
@@ -1662,7 +1662,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-004343";
+const VER = "20261005-004443";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
