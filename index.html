@@ -400,6 +400,14 @@ const SKIN = {
           document.documentElement.dataset.skin = v; }
 };
 SKIN.set(SKIN.get());
+const THEME = {
+  get(){ try{ const v=localStorage.getItem("planer.theme");
+               return (v==="light"||v==="dark") ? v : "auto"; }catch(e){ return "auto"; } },
+  set(v){ try{ localStorage.setItem("planer.theme",v); }catch(e){}
+    if(v==="auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.dataset.theme = v; }
+};
+THEME.set(THEME.get());
 const el = (t,p={},...k)=>{const e=document.createElement(t);
   for(const[a,v] of Object.entries(p)){
     if(a==="class")e.className=v; else if(a==="html")e.innerHTML=v;
@@ -1038,6 +1046,11 @@ function vLegenda(){
     el("button",{class:"btn"+(SKIN.get()===k?" on":""),style:"min-width:74px",
       onclick:()=>{SKIN.set(k);render()}},n),
     el("span",{class:"note",style:"flex:1;min-width:0"},d))));
+  const motywy=[["auto","Jak system"],["light","Jasny"],["dark","Ciemny"]];
+  c8.append(el("div",{class:"row"},
+    el("span",{class:"note",style:"min-width:74px"},"Motyw"),
+    ...motywy.map(([k,n])=>el("button",{class:"btn"+(THEME.get()===k?" on":""),
+      onclick:()=>{THEME.set(k);render()}},n))));
   c8.append(el("p",{class:"note"},"Wybór zostaje na tym urządzeniu. Treść i logika są te same w obu."));
 
   return {L:[c8,c1,c2,c3,c7], R:[c4,c5,c6], even:true};
@@ -1130,7 +1143,7 @@ const DIRTY = new Set();     // pliki do zapisania
 let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
 
 const TOK_KEY = "planer.gtok";
-const VER = "20261004-233350";
+const VER = "20261004-233645";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
