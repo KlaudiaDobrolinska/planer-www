@@ -1277,6 +1277,68 @@ function syncTransfer(){
   return s;
 }
 
+/* ---------- skanowanie kodu aparatem, wprost w planerze ---------- */
+function jsqrWczytaj(){
+  return new Promise((ok,no)=>{
+    if(window.jsQR) return ok();
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
+    s.onload = ()=>ok(); s.onerror = ()=>no(new Error("brak biblioteki"));
+    document.head.append(s);
+  });
+}
+function skanujScreen(){
+  const v = document.getElementById("view"); v.replaceChildren();
+  const info = el("p",{class:"note",style:"text-align:center"},
+    "Skieruj aparat na kod pokazany na komputerze.");
+  const video = el("video",{playsinline:"",muted:"",autoplay:"",
+    style:"width:100%;max-width:330px;border-radius:12px;background:#000;display:block;margin:0 auto"});
+  video.muted = true; video.playsInline = true;
+  const plotno = document.createElement("canvas");
+  let strumien = null, dziala = true;
+  const stop = ()=>{ dziala = false;
+    if(strumien){ try{ strumien.getTracks().forEach(t=>t.stop()); }catch(e){} strumien = null; } };
+  const klatka = ()=>{
+    if(!dziala) return;
+    try{
+      if(video.readyState >= 2 && video.videoWidth && window.jsQR){
+        plotno.width = video.videoWidth; plotno.height = video.videoHeight;
+        const ctx = plotno.getContext("2d", {willReadFrequently:true});
+        ctx.drawImage(video, 0, 0, plotno.width, plotno.height);
+        const obraz = ctx.getImageData(0, 0, plotno.width, plotno.height);
+        const znalezione = jsQR(obraz.data, obraz.width, obraz.height);
+        if(znalezione && znalezione.data && znalezione.data.indexOf("#p=") > 0){
+          stop();
+          transferScreen(znalezione.data.split("#p=")[1]);
+          return;
+        }
+      }
+    }catch(e){}
+    setTimeout(klatka, 130);
+  };
+  const s = sec("Skanowanie kodu", info, video,
+    el("div",{class:"row",style:"justify-content:center"},
+      el("button",{class:"ghost",onclick:()=>{ stop(); setupScreen(); }},"wróć")));
+  s.className = "sec lock"; v.append(s);
+
+  (async()=>{
+    try{
+      await jsqrWczytaj();
+      strumien = await navigator.mediaDevices.getUserMedia(
+        {video:{facingMode:{ideal:"environment"}}, audio:false});
+      video.srcObject = strumien;
+      await video.play().catch(()=>{});
+      klatka();
+    }catch(e){
+      const czemu = (e && (e.name==="NotAllowedError" || e.name==="SecurityError"))
+        ? "Nie dostałam dostępu do aparatu. Zezwól na kamerę i spróbuj jeszcze raz."
+        : (e && e.name==="NotFoundError") ? "Nie widzę aparatu w tym urządzeniu."
+        : "Nie udało się włączyć aparatu.";
+      info.className = "err"; info.textContent = czemu;
+    }
+  })();
+}
+
 /* ---------- ekran przejmowania ustawien z komputera ---------- */
 function transferScreen(pak, msg){
   const v = document.getElementById("view"); v.replaceChildren();
@@ -1600,7 +1662,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-003528";
+const VER = "20261005-004037";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1843,6 +1905,10 @@ function setupScreen(msg){
       el("button",{class:"btn",onclick:connect},"Połącz"),
       el("button",{class:"ghost",onclick:()=>{adv.hidden=!adv.hidden}},"zmień repozytorium"),
       out),
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:()=>skanujScreen()},"Zeskanuj kod z komputera"),
+      el("span",{class:"note",style:"flex:1;min-width:0"},
+        "Na Macu: Ustawienia → Przeniesienie na telefon → Pokaż kod.")),
     el("p",{class:"note"},"Token zostaje tylko w tej przeglądarce i jest zaszyfrowany PIN-em — "
       +"bez PIN-u nie da się go odczytać nawet z pamięci przeglądarki. "
       +"Nie wysyłaj tokenu nikomu — także mnie w rozmowie."));
