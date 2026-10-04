@@ -393,6 +393,7 @@ function cfgZapamietajFabryczne(){
   FABR.ST = [...ST]; FABR.STMARK = {...STMARK};
   FABR.STNAME = {...STNAME}; FABR.STCYC = {...STCYC};
   FABR.HABITS = HABITS.map(h=>[...h]);
+  FABR.KOTWICE = KOTWICE.map(k=>({...k, dni:[...k.dni]}));
 }
 function cfgZastosuj(c){
   const a = (c && c.areas && Object.keys(c.areas).length) ? c.areas : FABR.areas;
@@ -409,15 +410,23 @@ function cfgZastosuj(c){
   Object.assign(STCYC, m.STCYC || FABR.STCYC);
   const h = (c && c.habits && c.habits.length) ? c.habits : FABR.HABITS;
   HABITS.length = 0; h.forEach(x=>HABITS.push([x[0], x[1]]));
+  const kt = (c && c.kotwice) ? c.kotwice : FABR.KOTWICE;
+  KOTWICE.length = 0; kt.forEach(x=>KOTWICE.push({...x, dni:[...(x.dni||[])]}));
 }
 function cfgZapisz(){
   save("cfg/ui", {areas:JSON.parse(JSON.stringify(AREAS)),
     marks:{ST:[...ST], STMARK:{...STMARK}, STNAME:{...STNAME}, STCYC:{...STCYC}},
-    habits:HABITS.map(h=>[...h])});
+    habits:HABITS.map(h=>[...h]),
+    kotwice:KOTWICE.map(k=>({...k, dni:[...k.dni]}))});
 }
 function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
 const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],["Su","Suplementy"],["Wo","Woda"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
+const KOTWICE = [                       // zadania, które pojawiają się same
+  {dni:[1,2,3,4,5,6,7], txt:"Leki",                 area:"Z"},
+  {dni:[1],             txt:"Lek tygodniowy",       area:"Z"},
+  {dni:[6],             txt:"Suplementy na tydzień",area:"Z"}
+];
 cfgZapamietajFabryczne();     // dopiero gdy wszystkie ustawienia fabryczne są już zdefiniowane
 const HOME = [["pranie","pranie"],["zmyw","zmywarka"],["glowa","mycie głowy"],
   ["pielr","pielęgnacja rano"],["pielw","pielęgnacja wieczór"],["leki","leki"],["lektyg","lek tygodniowy"]];
@@ -511,6 +520,47 @@ const saveWeek= (w,p)=>{ S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week
 const uid = ()=>Math.random().toString(36).slice(2,9);
 const duza = s => { const v=(s||"").trim(); return v ? v[0].toLocaleUpperCase("pl")+v.slice(1) : v; };
 
+/* ---------- kotwice: zadania, które pojawiają się same ---------- */
+let kotwicaTrwa = null;
+function dodajKotwice(ds){
+  if(!S.db || !ds || kotwicaTrwa===ds) return;
+  if(ds < key(new Date())) return;        // przeszłości nie dopisujemy
+  const D = dayDoc(ds);
+  if(D.kotwice) return;
+  const dow = dowIdx(ds) + 1;             // 1 = poniedziałek
+  const nowe = KOTWICE
+    .filter(k => (k.dni||[]).includes(dow) && (k.txt||"").trim())
+    .filter(k => !D.tasks.some(t => t.txt === k.txt))
+    .map(k => ({id:uid(), txt:duza(k.txt), st:"todo", area:k.area||"Z",
+                minor:true, kotwica:true}));
+  kotwicaTrwa = ds;
+  saveDay(ds, {tasks:[...D.tasks, ...nowe], kotwice:true});
+  setTimeout(()=>{ kotwicaTrwa = null; }, 1500);
+}
+
+/* ---------- liczby do przeglądu ---------- */
+function podsumowanie(daty){
+  let blok=0, blokD=0, zad=0, zrob=0, dniN=0, dniZ=0;
+  const oceny={F:[],P:[],E:[]};
+  daty.forEach(ds=>{
+    const D = S.mdays[ds] || (ds===S.date ? S.day[ds] : null) || {};
+    const bl = D.blocks||[], ta = D.tasks||[];
+    blok += bl.length; blokD += bl.filter(b=>b.done).length;
+    zad += ta.length; zrob += ta.filter(t=>t.st==="done").length;
+    if(D.type==="N") dniN++;
+    if(D.type) dniZ++;
+    const h = (S.health[ds.slice(0,7)]||{})[+ds.slice(8)] || {};
+    ["F","P","E"].forEach(k=>{ if(h[k]) oceny[k].push(h[k]); });
+  });
+  const sr = a => a.length ? (a.reduce((x,y)=>x+y,0)/a.length).toFixed(1).replace(".",",") : "—";
+  return {blok, blokD, zad, zrob, dniN, dniZ, F:sr(oceny.F), P:sr(oceny.P), E:sr(oceny.E)};
+}
+function liczbyWiersz(etykieta, wartosc){
+  return el("div",{class:"row"},
+    el("span",{class:"note",style:"min-width:168px"},etykieta),
+    el("b",{style:"font-weight:600;font-variant-numeric:tabular-nums"},String(wartosc)));
+}
+
 /* ---------- subskrypcje ---------- */
 function ensureMonth(m){
   const f = "data/days-"+m+".json";
@@ -528,7 +578,7 @@ function resub(){
   const hi=[m+"-31", addD(monday(d),6)].sort()[1];
   const on=(ref,fn)=>S.subs.push(ref.onSnapshot(fn, ()=>{}));
   on(S.db.doc("cfg/ui"), s=>{ cfgZastosuj(s.exists?s.data():null); render(); });
-  on(S.db.doc("days/"+d),    s=>{S.day[d]=s.exists?s.data():null; render()});
+  on(S.db.doc("days/"+d),    s=>{S.day[d]=s.exists?s.data():null; dodajKotwice(d); render()});
   on(S.db.doc("weeks/"+w),   s=>{S.week[w]=s.exists?s.data():null; render()});
   on(S.db.doc("habits/"+m),  s=>{S.habits[m]=s.exists?s.data():{}; render()});
   on(S.db.doc("health/"+m),  s=>{S.health[m]=s.exists?s.data():{}; render()});
@@ -873,8 +923,24 @@ function vDzis(){
   const ab=el("div",{class:"row",style:"gap:3px"});
   Object.entries(AREAS).forEach(([k,v])=>ab.append(el("button",{class:"btn icon"+(na===k?" on":""),
     title:v.n+" · "+v.nr,onclick:()=>{na=k;[...ab.children].forEach(b=>b.classList.toggle("on",b.textContent===k))}},k)));
+  const otwarte = D.tasks.filter(t=>!["done","canc","moved"].includes(t.st));
+  const przenies = async()=>{
+    if(!otwarte.length || !S.db) return;
+    const jutro = addD(d,1);
+    if(!confirm("Przenieść "+otwarte.length+" niezrobion"+(otwarte.length===1?"e zadanie":"ych zadań")
+      +" na "+parse(jutro).getDate()+" "+MONTHS[parse(jutro).getMonth()]+"?")) return;
+    let dane = {};
+    try{ const s = await S.db.doc("days/"+jutro).get(); if(s.exists) dane = s.data()||{}; }catch(e){}
+    const tj = Array.isArray(dane.tasks) ? dane.tasks : [];
+    await S.db.doc("days/"+jutro).set({...dane,
+      tasks:[...tj, ...otwarte.map(x=>({...x, id:uid(), st:"todo"}))]});
+    saveDay(d,{tasks:D.tasks.map(x=>otwarte.some(o=>o.id===x.id) ? {...x, st:"moved"} : x)});
+  };
   const secTasks=sec("Zadania",list,el("div",{class:"row",style:"margin-top:6px"},inp),
-    el("div",{class:"row"},ab,el("span",{class:"spacer"}),el("button",{class:"btn",onclick:addT},"Dodaj")));
+    el("div",{class:"row"},ab,el("span",{class:"spacer"}),el("button",{class:"btn",onclick:addT},"Dodaj")),
+    otwarte.length ? el("div",{class:"row"},
+      el("button",{class:"ghost",onclick:przenies},
+        "przenieś niezrobione na jutro (" + otwarte.length + ")")) : null);
 
   /* oś godzin — wiersz na pół godziny, kliknięcie zakłada blok */
   const H0=7, H1=23, POL=16;
@@ -1014,6 +1080,15 @@ function vTydzien(){
     el("p",{class:"note"},"Pranie: liczba wsadów. Reszta: ■ zrobione, ◩ skrócona. Lek tygodniowy — poniedziałek."));
 
   const rv=sec("Przegląd tygodnia");
+  const pw = podsumowanie(days);
+  rv.append(
+    liczbyWiersz("Bloki zaplanowane", pw.blok),
+    liczbyWiersz("Bloki zrobione", pw.blokD),
+    liczbyWiersz("Zadania zrobione", pw.zrob + " z " + pw.zad),
+    liczbyWiersz("Dni niskiej energii (N)", pw.dniN),
+    liczbyWiersz("Średnio fizycznie / psychicznie / efektywność",
+      pw.F + " · " + pw.P + " · " + pw.E),
+    el("p",{class:"note"},"Liczby są po to, żeby odróżnić gorszy tydzień od tendencji — nie do oceniania."));
   REVIEW.forEach((qn,i)=>{
     const ta=el("textarea",{rows:2,placeholder:qn}); ta.value=W.review[i]||"";
     ta.addEventListener("change",()=>saveWeek(w,{review:{...W.review,[i]:ta.value}}));
@@ -1134,7 +1209,38 @@ function vTrackery(){
   });
   c2.append(el("p",{class:"note"},
     "Zieleń zawsze znaczy dobrze. W cyklu 1 to plamienie, 5 to lek na receptę. Puste = brak krwawienia."));
-  return {L:[c1], R:[c2], even:true};
+  /* podsumowanie miesiąca — do zauważania wzorców, nie do oceniania */
+  const daty=[...Array(n)].map((_,i)=>S.month+"-"+pad(i+1));
+  const pm=podsumowanie(daty);
+  const c3=sec("Miesiąc w liczbach");
+  c3.append(
+    liczbyWiersz("Bloki zaplanowane", pm.blok),
+    liczbyWiersz("Bloki zrobione", pm.blokD + (pm.blok ? "  (" + Math.round(pm.blokD/pm.blok*100) + "%)" : "")),
+    liczbyWiersz("Zadania zrobione", pm.zrob + " z " + pm.zad),
+    liczbyWiersz("Dni z oznaczonym typem", pm.dniZ),
+    liczbyWiersz("Dni niskiej energii (N)", pm.dniN),
+    liczbyWiersz("Średnio fizycznie", pm.F),
+    liczbyWiersz("Średnio psychicznie", pm.P),
+    liczbyWiersz("Średnio efektywność", pm.E));
+  const serie=el("div",{});
+  HABITS.forEach(([k,nazwa])=>{
+    let teraz=0, najdluzsza=0, razem=0;
+    for(let i=1;i<=n;i++){
+      const v=(H[i]||{})[k];
+      if(v===1||v===2){ teraz++; razem++; if(teraz>najdluzsza) najdluzsza=teraz; }
+      else if(v===3){ /* nie dotyczy — seria trwa */ }
+      else teraz=0;
+    }
+    serie.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:6px"},
+      el("span",{class:"note",style:"flex:1 1 80px;min-width:0"},nazwa),
+      el("b",{style:"font-weight:600;font-variant-numeric:tabular-nums;flex:0 0 auto"},razem+" dni"),
+      el("span",{class:"note",style:"flex:0 0 auto"},"seria "+najdluzsza)));
+  });
+  c3.append(el("div",{class:"note",style:"margin-top:4px"},"Nawyki w tym miesiącu"), serie);
+  c3.append(el("p",{class:"note"},
+    "Policzone z dni tego miesiąca. „Nie dotyczy” nie przerywa serii."));
+
+  return {L:[c1,c3], R:[c2], even:true};
 }
 
 /* ---------- Cele ---------- */
@@ -1628,6 +1734,47 @@ function vUstawienia(){
     +"Nawyki są te same na wszystkich urządzeniach."));
   kafle.push(nw);
 
+  /* --- kotwice --- */
+  const kt = sec("Kotwice — zadania, które pojawiają się same");
+  const DNINAZ=["pon","wt","śr","czw","pt","sob","nd"];
+  KOTWICE.forEach((k,i)=>{
+    const tx=el("input",{type:"text",value:k.txt||"",
+      style:"width:auto;flex:1 1 160px;min-width:0"});
+    tx.addEventListener("change",()=>{KOTWICE[i].txt=duza(tx.value); cfgZapisz(); render();});
+    const dni=el("div",{class:"row",style:"gap:2px"});
+    DNINAZ.forEach((nz,j)=>{
+      const nr=j+1, wl=(k.dni||[]).includes(nr);
+      dni.append(el("button",{class:"btn icon"+(wl?" on":""),title:nz,
+        onclick:()=>{
+          const zb=new Set(k.dni||[]); zb.has(nr)?zb.delete(nr):zb.add(nr);
+          KOTWICE[i].dni=[...zb].sort((a,b)=>a-b); cfgZapisz(); render();
+        }},nz));
+    });
+    kt.append(el("div",{class:"row"},tx,
+      el("button",{class:"ghost",title:"Obszar",onclick:()=>{
+        const ks=Object.keys(AREAS);
+        KOTWICE[i].area=ks[(ks.indexOf(k.area)+1)%ks.length]; cfgZapisz(); render();
+      }},(AREAS[k.area]||AREAS.Z).nr),
+      el("button",{class:"ghost",title:"Usuń kotwicę",onclick:()=>{
+        if(!confirm("Usunąć kotwicę „"+(k.txt||"")+"”?")) return;
+        KOTWICE.splice(i,1); cfgZapisz(); render();
+      }},"✕")), dni);
+  });
+  kt.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      KOTWICE.push({dni:[1,2,3,4,5,6,7], txt:"Nowa kotwica", area:"Z"});
+      cfgZapisz(); render();
+    }},"Dodaj kotwicę"),
+    el("button",{class:"ghost",onclick:()=>{
+      if(!confirm("Przywrócić kotwice fabryczne?")) return;
+      KOTWICE.length=0; FABR.KOTWICE.forEach(x=>KOTWICE.push({...x,dni:[...x.dni]}));
+      cfgZapisz(); render();
+    }},"przywróć fabryczne")));
+  kt.append(el("p",{class:"note"},
+    "Kotwica dopisuje się pod kreską w dniówce — dziś i w przyszłych dniach, nigdy wstecz. "
+    +"Jeśli usuniesz ją z dnia, nie wróci."));
+  kafle.push(kt);
+
   /* --- aplikacja --- */
   const ap = sec("Aplikacja");
   ap.append(
@@ -1776,7 +1923,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-005457";
+const VER = "20261005-005827";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
