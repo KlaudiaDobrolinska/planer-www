@@ -396,6 +396,7 @@ function cfgZapamietajFabryczne(){
   FABR.STNAME = {...STNAME}; FABR.STCYC = {...STCYC};
   FABR.HABITS = HABITS.map(h=>[...h]);
   FABR.KOTWICE = KOTWICE.map(k=>({...k, dni:[...k.dni]}));
+  FABR.TERMINY = TERMINY.map(x=>({...x}));
 }
 function cfgZastosuj(c){
   const a = (c && c.areas && Object.keys(c.areas).length) ? c.areas : FABR.areas;
@@ -414,16 +415,20 @@ function cfgZastosuj(c){
   HABITS.length = 0; h.forEach(x=>HABITS.push([x[0], x[1]]));
   const kt = (c && c.kotwice) ? c.kotwice : FABR.KOTWICE;
   KOTWICE.length = 0; kt.forEach(x=>KOTWICE.push({...x, dni:[...(x.dni||[])]}));
+  const tm = (c && c.terminy) ? c.terminy : FABR.TERMINY;
+  TERMINY.length = 0; tm.forEach(x=>TERMINY.push({...x}));
 }
 function cfgZapisz(){
   save("cfg/ui", {areas:JSON.parse(JSON.stringify(AREAS)),
     marks:{ST:[...ST], STMARK:{...STMARK}, STNAME:{...STNAME}, STCYC:{...STCYC}},
     habits:HABITS.map(h=>[...h]),
-    kotwice:KOTWICE.map(k=>({...k, dni:[...k.dni]}))});
+    kotwice:KOTWICE.map(k=>({...k, dni:[...k.dni]})),
+    terminy:TERMINY.map(x=>({...x}))});
 }
 function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
 const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],["Su","Suplementy"],["Wo","Woda"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
+const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
 const KOTWICE = [                       // zadania, które pojawiają się same
   {dni:[1,2,3,4,5,6,7], txt:"Leki",                 area:"Z"},
   {dni:[1],             txt:"Lek tygodniowy",       area:"Z"},
@@ -521,6 +526,43 @@ const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, ...(S.week
 const saveWeek= (w,p)=>{ S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
 const duza = s => { const v=(s||"").trim(); return v ? v[0].toLocaleUpperCase("pl")+v.slice(1) : v; };
+
+/* ---------- szybki wpis: jedno pole, rozbierane na części ---------- */
+const DNISKROT = {pon:1, wt:2, "śr":3, sr:3, czw:4, pt:5, sob:6, nd:7, niedz:7};
+function parsujWpis(wejscie){
+  let s = " " + (wejscie||"") + " ";
+  const dzisiaj = key(new Date());
+  let data = S.date, od = null, doo = null, obszar = null;
+
+  s = s.replace(/#(\S+)/g, (m, g)=>{
+    const szuk = g.toLowerCase();
+    const klucz = Object.keys(AREAS).find(k => k.toLowerCase() === szuk
+      || (AREAS[k].n||"").toLowerCase().startsWith(szuk));
+    if(klucz) obszar = klucz;
+    return " ";
+  });
+  s = s.replace(/(^|\s)(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2})(?::(\d{2}))?(?=\s)/,
+    (m, p, h1, m1, h2, m2)=>{ od = pad(+h1)+":"+m1; doo = pad(+h2)+":"+(m2||"00"); return " "; });
+  if(!od) s = s.replace(/(^|\s)(\d{1,2})\s*[-–]\s*(\d{1,2})(?=\s)/,
+    (m, p, h1, h2)=>{ if(+h1>23||+h2>23) return m;
+      od = pad(+h1)+":00"; doo = pad(+h2)+":00"; return " "; });
+  if(!od) s = s.replace(/(^|\s)(\d{1,2}):(\d{2})(?=\s)/,
+    (m, p, h, mi)=>{ if(+h>23||+mi>59) return m; od = pad(+h)+":"+mi; return " "; });
+  s = s.replace(/(^|\s)(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?(?=\s)/,
+    (m, p, dd, mm, rr)=>{ if(+mm<1||+mm>12||+dd<1||+dd>31) return m;
+      data = (rr ? +rr : parse(dzisiaj).getFullYear())+"-"+pad(+mm)+"-"+pad(+dd); return " "; });
+  s = s.replace(/(^|\s)(dziś|dzis|jutro|pojutrze)(?=\s)/i, (m, p, w)=>{
+    const ile = {"dziś":0, dzis:0, jutro:1, pojutrze:2}[w.toLowerCase()];
+    data = addD(dzisiaj, ile); return " "; });
+  s = s.replace(/(^|\s)(pon|wt|śr|sr|czw|pt|sob|niedz|nd)(?=\s)/i, (m, p, w)=>{
+    const cel = DNISKROT[w.toLowerCase()];
+    const d = parse(dzisiaj);
+    for(let i=0;i<8;i++){ if(((d.getDay()+6)%7)+1 === cel) break; d.setDate(d.getDate()+1); }
+    data = key(d); return " "; });
+
+  return {data, od, doo, obszar, txt: duza(s.replace(/\s+/g," ").trim())};
+}
+function rodzajWpisu(r){ return r.doo ? "blok" : (r.od ? "wydarzenie" : "zadanie"); }
 
 /* ---------- dopisanie zadania do dowolnego dnia ---------- */
 async function dopiszZadanie(ds, zadanie){
@@ -1046,8 +1088,72 @@ function vDzis(){
   ta.addEventListener("change",()=>saveDay(d,{journal:ta.value}));
   const secDz=sec(ink?("Dziennik · "+mo.getDate()+" "+ink):"Dziennik",ta);
 
+  /* --- szybki wpis --- */
+  const szPole=el("input",{type:"text",placeholder:"np. jutro 9:00-11:00 Gabinet #G"});
+  const szPodg=el("p",{class:"note"});
+  const odswiezPodg=()=>{
+    const r=parsujWpis(szPole.value);
+    if(!r.txt){ szPodg.textContent=
+      "„Pranie ciemne” → zadanie · „12:30 Psychoterapia” → wydarzenie · "
+      +"„jutro 9:00-11:00 Gabinet” → blok. Dzień: dziś / jutro / pon / 5.10 (kropka). "
+      +"Godzina z dwukropkiem. Obszar: #G."; return; }
+    const kt=rodzajWpisu(r), dd=parse(r.data);
+    szPodg.textContent = {zadanie:"Zadanie", blok:"Blok", wydarzenie:"Wydarzenie w kalendarzu"}[kt]
+      + " · " + dd.getDate() + " " + MONTHS[dd.getMonth()]
+      + (r.od ? " · " + r.od + (r.doo ? "–"+r.doo : "") : "")
+      + (r.obszar ? " · " + (AREAS[r.obszar]||AREAS.Z).n : "")
+      + " · " + r.txt;
+  };
+  szPole.addEventListener("input",odswiezPodg);
+  const szWyslij=async()=>{
+    const r=parsujWpis(szPole.value); if(!r.txt) return;
+    const kt=rodzajWpisu(r), ob=r.obszar||"Z";
+    if(kt==="zadanie"){
+      if(r.data===d) saveDay(d,{tasks:[...D.tasks,{id:uid(),txt:r.txt,st:"todo",area:ob,minor:false}]});
+      else await dopiszZadanie(r.data,{id:uid(),txt:r.txt,st:"todo",area:ob,minor:false});
+    }else if(kt==="blok"){
+      const nowy={id:uid(),s:r.od,e:r.doo,area:ob,txt:r.txt,done:false};
+      if(r.data===d) saveDay(d,{blocks:[...D.blocks,nowy]});
+      else{
+        let dane={}; try{ const sn=await S.db.doc("days/"+r.data).get(); if(sn.exists) dane=sn.data()||{}; }catch(e){}
+        const bl=Array.isArray(dane.blocks)?dane.blocks:[];
+        await S.db.doc("days/"+r.data).set({...dane,blocks:[...bl,nowy]});
+      }
+    }else{
+      if(typeof calSave==="function"){
+        const kon=new Date(2000,0,1,+r.od.slice(0,2),+r.od.slice(3)); kon.setMinutes(kon.getMinutes()+60);
+        await calSave({date:r.data, title:r.txt, allDay:false, sd:r.data, ed:r.data,
+          st:r.od, et:pad(kon.getHours())+":"+pad(kon.getMinutes()), guests:"", loc:"", desc:"", notify:false});
+      }else{
+        await dopiszZadanie(r.data,{id:uid(),txt:r.od+" "+r.txt,st:"event",area:ob,minor:false});
+      }
+    }
+    szPole.value=""; odswiezPodg(); render();
+  };
+  szPole.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); szWyslij(); } });
+  odswiezPodg();
+  const secSzyb=sec("Szybki wpis", szPole,
+    el("div",{class:"row"}, el("button",{class:"btn",onclick:szWyslij},"Dodaj"), szPodg));
+
+  /* --- terminy --- */
+  const dzisiaj=key(new Date());
+  const term=(TERMINY||[]).filter(x=>x.d && x.d>=dzisiaj)
+    .sort((a,b)=>a.d.localeCompare(b.d)).slice(0,6);
+  const secTerm=sec("Terminy");
+  if(!term.length) secTerm.append(el("p",{class:"note"},
+    "Brak terminów. Dodasz je w Ustawieniach — testy, płatności, zjazdy."));
+  term.forEach(x=>{
+    const ile=Math.round((parse(x.d)-parse(dzisiaj))/86400000);
+    const pilne=ile<=3;
+    secTerm.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:7px"},
+      el("span",{style:"flex:1 1 auto;min-width:0"},x.txt),
+      el("b",{style:"flex:0 0 auto;font-weight:600;color:"+(pilne?"var(--r)":"var(--fg-2)")},
+        ile===0?"dziś":(ile===1?"jutro":("za "+ile+" dni")))));
+  });
+
   const mk=miniKalendarz(d);
-  return {L:[secTasks,secBloki,secDz], R:showCal?[mk,secMust,secTyp,secCal]:[mk,secMust,secTyp]};
+  const prawa = showCal ? [mk,secMust,secTyp,secTerm,secCal] : [mk,secMust,secTyp,secTerm];
+  return {L:[secSzyb,secTasks,secBloki,secDz], R:prawa};
 }
 
 /* ---------- Tydzień ---------- */
@@ -1823,6 +1929,28 @@ function vUstawienia(){
     +"Jeśli usuniesz ją z dnia, nie wróci."));
   kafle.push(kt);
 
+  /* --- terminy --- */
+  const tm = sec("Terminy");
+  TERMINY.slice().sort((a,b)=>(a.d||"").localeCompare(b.d||"")).forEach(x=>{
+    const i = TERMINY.indexOf(x);
+    const dt=el("input",{type:"date",value:x.d||"",style:"width:auto;flex:0 0 150px"});
+    const tx=el("input",{type:"text",value:x.txt||"",placeholder:"Czego dotyczy",
+      style:"width:auto;flex:1 1 150px;min-width:0"});
+    dt.addEventListener("change",()=>{TERMINY[i].d=dt.value; cfgZapisz(); render();});
+    tx.addEventListener("change",()=>{TERMINY[i].txt=duza(tx.value); cfgZapisz(); render();});
+    tm.append(el("div",{class:"row"},dt,tx,
+      el("button",{class:"ghost",title:"Usuń termin",onclick:()=>{
+        TERMINY.splice(i,1); cfgZapisz(); render();
+      }},"✕")));
+  });
+  tm.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      TERMINY.push({d:addD(key(new Date()),7), txt:"Nowy termin"}); cfgZapisz(); render();
+    }},"Dodaj termin")));
+  tm.append(el("p",{class:"note"},
+    "Terminy pokazują się w widoku Dziś z odliczaniem. Trzy dni przed — na czerwono."));
+  kafle.push(tm);
+
   /* --- aplikacja --- */
   const ap = sec("Aplikacja");
   ap.append(
@@ -1971,7 +2099,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-010202";
+const VER = "20261005-011114";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
