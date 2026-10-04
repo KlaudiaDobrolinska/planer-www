@@ -358,7 +358,7 @@ let calRange = "";
 const GSCOPE = "https://www.googleapis.com/auth/calendar.events";
 const GAPI   = "https://www.googleapis.com/calendar/v3";
 const GTZ    = "Europe/Warsaw";
-let gTok = null, gExp = 0, gTimer = null, calAt = 0, calEdit = null;
+let gTok = null, gExp = 0, gBusy = false, gLast = 0, calAt = 0, calEdit = null;
 
 function gisLoad(){
   return new Promise((ok,no)=>{
@@ -369,15 +369,21 @@ function gisLoad(){
     document.head.append(s);
   });
 }
-function gKeep(){                       // odnawia zgodę po cichu, zanim wygaśnie
-  clearTimeout(gTimer);
-  gTimer = setTimeout(()=>{
-    gTok = null;
-    gToken(false).then(()=>calLoad(false,true)).catch(()=>{ render(); });
-  }, Math.max(60000, gExp - Date.now() - 300000));
+function gValid(){ return !!gTok && Date.now() < gExp - 60000; }
+async function gStore(){               // zgoda przeżywa zamknięcie aplikacji — szyfrowana tym samym PIN-em
+  if(!AESKEY || !gTok) return;
+  try{ localStorage.setItem(TOK_KEY, JSON.stringify(await seal(JSON.stringify({t:gTok, e:gExp})))); }
+  catch(e){}
 }
-function gToken(interactive){
-  if(gTok && Date.now() < gExp-60000) return Promise.resolve(gTok);
+async function gRestore(){
+  if(!AESKEY) return;
+  try{
+    const v = JSON.parse(localStorage.getItem(TOK_KEY)||"null"); if(!v) return;
+    const o = JSON.parse(await unseal(v));
+    if(o && o.e - 120000 > Date.now()){ gTok = o.t; gExp = o.e; }
+  }catch(e){}
+}
+function gRequest(interactive){
   if(!GH.gcal) return Promise.reject({code:"no_client"});
   return gisLoad().then(()=>new Promise((ok,no)=>{
     let done = false;
@@ -386,16 +392,30 @@ function gToken(interactive){
       callback: r=>{ done = true;
         if(r && r.access_token){
           gTok = r.access_token; gExp = Date.now() + ((r.expires_in||3600)*1000);
-          gKeep(); ok(gTok);
+          gStore(); ok(gTok);
         } else no({code:"denied"}); },
       error_callback: e=>{ done = true;
         no({code:(e && e.type==="popup_closed") ? "denied" : "connect"}); }
     });
     try{ cl.requestAccessToken({prompt: interactive ? "" : "none"}); }
     catch(e){ no({code:"connect"}); }
-    setTimeout(()=>{ if(!done) no({code:"connect"}); }, interactive ? 120000 : 8000);
+    setTimeout(()=>{ if(!done) no({code:"connect"}); }, interactive ? 120000 : 10000);
   }));
 }
+async function gToken(interactive){
+  if(gValid()) return gTok;
+  return gRequest(interactive);
+}
+// Google otwiera okienko także przy cichym odnawianiu, a przeglądarka wpuszcza je
+// tylko tuż po kliknięciu — więc odnawiamy przy okazji dowolnego kliknięcia w planerze.
+document.addEventListener("pointerdown", ()=>{
+  if(!GH.gcal || gBusy || gValid()) return;
+  if(Date.now() - gLast < 60000) return;
+  gLast = Date.now(); gBusy = true;
+  gRequest(false).then(()=>{ gBusy=false; calLoad(false,true); })
+                 .catch(()=>{ gBusy=false; });
+}, {capture:true, passive:true});
+
 async function calApi(path, opts){
   let tok;
   try{ tok = await gToken(false); }catch(e){ tok = await gToken(true); }
@@ -971,41 +991,41 @@ const SUBS  = [];            // subskrypcje w pamięci
 const DIRTY = new Set();     // pliki do zapisania
 let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
 
-let VAULT = null, PIN = null;   // token leży w przeglądarce zaszyfrowany PIN-em
+const TOK_KEY = "planer.gtok";
+let VAULT = null, AESKEY = null, SALT = null;
 const ENC = new TextEncoder(), DEC = new TextDecoder();
 const toB = a => btoa(String.fromCharCode(...new Uint8Array(a)));
 const frB = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-async function pinKey(pin, salt){
+async function deriveKey(pin, saltB64){        // liczone raz na sesję, potem szyfrowanie jest natychmiastowe
   const km = await crypto.subtle.importKey("raw", ENC.encode(pin), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:250000, hash:"SHA-256"},
+  AESKEY = await crypto.subtle.deriveKey(
+    {name:"PBKDF2", salt:frB(saltB64), iterations:250000, hash:"SHA-256"},
     km, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+  SALT = saltB64;
 }
-async function seal(pin, token){
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv   = crypto.getRandomValues(new Uint8Array(12));
-  const ct   = await crypto.subtle.encrypt({name:"AES-GCM", iv},
-                 await pinKey(pin, salt), ENC.encode(token));
-  return {salt:toB(salt), iv:toB(iv), ct:toB(ct)};
+async function seal(txt){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, AESKEY, ENC.encode(txt));
+  return {iv:toB(iv), ct:toB(ct)};
 }
-async function unseal(pin, v){
-  return DEC.decode(await crypto.subtle.decrypt({name:"AES-GCM", iv:frB(v.iv)},
-    await pinKey(pin, frB(v.salt)), frB(v.ct)));
+async function unseal(v){
+  return DEC.decode(await crypto.subtle.decrypt({name:"AES-GCM", iv:frB(v.iv)}, AESKEY, frB(v.ct)));
 }
 function cfgLoad(){
   let m = {}; try{ m = JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){}
   if(m.owner) GH.owner = m.owner;
   if(m.repo)  GH.repo  = m.repo;
   if(m.branch)GH.branch= m.branch;
-  if(m.gcal) GH.gcal = m.gcal;
-  GH.token = m.token || "";            // ze starej, niezaszyfrowanej wersji
-  VAULT = (m.ct && m.iv && m.salt) ? {ct:m.ct, iv:m.iv, salt:m.salt} : null;
+  if(m.gcal)  GH.gcal  = m.gcal;
+  SALT  = m.salt || null;
+  VAULT = (m.ct && m.iv && m.salt) ? {ct:m.ct, iv:m.iv} : null;
   return !!VAULT;
 }
 async function cfgSave(){
-  if(!PIN || !GH.token) return;
-  const v = await seal(PIN, GH.token);
+  if(!AESKEY || !GH.token) return;
+  const v = await seal(GH.token);
   try{ localStorage.setItem(CFG_KEY, JSON.stringify(
-    {owner:GH.owner, repo:GH.repo, branch:GH.branch, gcal:GH.gcal, ...v})); }catch(e){}
+    {owner:GH.owner, repo:GH.repo, branch:GH.branch, gcal:GH.gcal, salt:SALT, ...v})); }catch(e){}
   VAULT = v;
 }
 
@@ -1148,7 +1168,8 @@ function setupScreen(msg){
     GH.gcal=(inCal.value||"").trim();
     const pin=(inPin.value||"").trim();
     if(pin.length<4){ out.textContent="Ustaw PIN — co najmniej 4 znaki."; return; }
-    PIN=pin;
+    out.textContent="Szyfruję…";
+    await deriveKey(pin, toB(crypto.getRandomValues(new Uint8Array(16))));
     out.textContent="Sprawdzam…";
     try{ await boot(true); }
     catch(e){ out.textContent = e.status===404
@@ -1185,9 +1206,9 @@ function unlockScreen(msg){
     const pin=(inPin.value||"").trim(); if(!pin) return;
     out.textContent="Otwieram…";
     let tok=null;
-    try{ tok = await unseal(pin, VAULT); }
-    catch(e){ unlockScreen("Zły PIN."); return; }
-    PIN=pin; GH.token=tok;
+    try{ await deriveKey(pin, SALT); tok = await unseal(VAULT); }
+    catch(e){ AESKEY=null; unlockScreen("Zły PIN."); return; }
+    GH.token=tok;
     try{ await boot(false); }
     catch(e){ S.ready=true; setupScreen(e.status===401
       ? "Token odrzucony — wpisz nowy." : "Brak połączenia z GitHubem."); }
@@ -1199,7 +1220,8 @@ function unlockScreen(msg){
     el("label",{class:"fld"},"PIN",inPin),
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:go},"Otwórz"),
-      el("button",{class:"ghost",onclick:()=>{ VAULT=null; GH.token=""; PIN=null;
+      el("button",{class:"ghost",onclick:()=>{ VAULT=null; GH.token=""; AESKEY=null;
+        try{ localStorage.removeItem(TOK_KEY); }catch(e){}
         setupScreen("Wpisz token jeszcze raz i ustaw nowy PIN."); }},"nie pamiętam PIN-u"),
       out)));
   setTimeout(()=>inPin.focus(),50);
@@ -1213,6 +1235,7 @@ async function boot(fromSetup){
   const files = DATA_FILES.concat(["data/days-"+month+".json"]);
   for(const f of files) await pull(f);
   if(fromSetup) await cfgSave();
+  await gRestore();
   S.db = {doc:docRef, collection:(p)=>colRef(p)};
   S.ready = true; S.canWrite = null;
   resub(); render(); status();
