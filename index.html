@@ -1194,6 +1194,129 @@ function syncPolaczenie(){
         : null));
   return box;
 }
+/* ---------- przeniesienie na drugie urzadzenie ---------- */
+const b64u  = a => toB(a).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+const odB64u = s => { s = s.replace(/-/g,"+").replace(/_/g,"/");
+  while(s.length % 4) s += "="; return frB(s); };
+async function kluczZKodu(kod, salt){
+  const km = await crypto.subtle.importKey("raw", ENC.encode(kod), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:600000, hash:"SHA-256"},
+    km, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function transferUtworz(){
+  const kod  = String(Math.floor(100000 + Math.random()*900000));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const dane = JSON.stringify({t:GH.token, o:GH.owner, r:GH.repo, g:GH.gcal,
+                               wazne:Date.now() + 15*60000});
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv},
+               await kluczZKodu(kod, salt), ENC.encode(dane));
+  const pak = [b64u(salt), b64u(iv), b64u(ct)].join(".");
+  return {kod, url: location.origin + location.pathname + "#p=" + pak};
+}
+async function transferOtworz(pak, kod){
+  const [s,i,c] = pak.split(".");
+  if(!s || !i || !c) throw new Error("zly kod");
+  const jawne = DEC.decode(await crypto.subtle.decrypt({name:"AES-GCM", iv:odB64u(i)},
+    await kluczZKodu(kod, odB64u(s)), odB64u(c)));
+  const o = JSON.parse(jawne);
+  if(!o.t || !o.wazne || o.wazne < Date.now()) throw new Error("przeterminowane");
+  return o;
+}
+function qrRysuj(box, tekst){
+  const rysuj = ()=>{
+    try{
+      const q = qrcode(0, "L"); q.addData(tekst); q.make();
+      box.innerHTML = q.createSvgTag({cellSize:4, margin:2, scalable:true});
+      const svg = box.querySelector("svg");
+      if(svg){ svg.setAttribute("width","216"); svg.setAttribute("height","216");
+               svg.style.width="216px"; svg.style.height="216px"; }
+    }catch(e){ box.textContent = "Nie udało się narysować kodu."; }
+  };
+  if(window.qrcode) return rysuj();
+  const s = document.createElement("script");
+  s.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";
+  s.onload = rysuj;
+  s.onerror = ()=>{ box.textContent = "Brak internetu — kod QR wymaga sieci."; };
+  document.head.append(s);
+}
+function syncTransfer(){
+  if(!GH.token) return null;
+  const s = sec("Przeniesienie na telefon");
+  const miejsce = el("div",{style:"display:flex;flex-direction:column;gap:8px;align-items:center;"
+    +"padding:12px;background:#fff;border-radius:10px;align-self:flex-start"});
+  const opis = el("p",{class:"note"});
+  const schowaj = ()=>{ miejsce.replaceChildren(); miejsce.hidden = true; opis.textContent = ""; };
+  miejsce.hidden = true;
+  s.append(
+    el("p",{class:"note"},"Zamiast przepisywać token: pokaż kod, zeskanuj go aparatem telefonu "
+      +"i wpisz sześć cyfr, które się tu pojawią."),
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:async()=>{
+        const {kod, url} = await transferUtworz();
+        miejsce.hidden = false; miejsce.replaceChildren();
+        const qr = el("div",{}); miejsce.append(qr);
+        miejsce.append(el("div",{style:"font-size:26px;letter-spacing:.22em;color:#111;"
+          +"font-variant-numeric:tabular-nums"}, kod));
+        qrRysuj(qr, url);
+        opis.textContent = "Kod działa 15 minut. Aparat telefonu rozpozna adres — otwórz go, "
+          + "a planer poprosi o te sześć cyfr.";
+        setTimeout(schowaj, 15*60000);
+      }},"Pokaż kod"),
+      el("button",{class:"ghost",onclick:schowaj},"ukryj")),
+    miejsce, opis,
+    el("p",{class:"note"},"Nie pokazuj tego kodu przy obcych — razem z sześcioma cyframi "
+      +"daje dostęp do danych planera."));
+  return s;
+}
+
+/* ---------- ekran przejmowania ustawien z komputera ---------- */
+function transferScreen(pak, msg){
+  const v = document.getElementById("view"); v.replaceChildren();
+  const out = el("p",{class:"note",style:"text-align:center;min-height:19px"},
+    msg || "Wpisz sześć cyfr pokazanych na komputerze.");
+  let zajety = false;
+  const pad = pinPad(async kod=>{
+    if(zajety) return; zajety = true;
+    out.textContent = "Sprawdzam…";
+    let o = null;
+    try{ o = await transferOtworz(pak, kod); }
+    catch(e){
+      zajety = false; pad.shake(); pad.wipe();
+      out.textContent = (e && e.message === "przeterminowane")
+        ? "Kod wygasł — pokaż nowy na komputerze." : "Zły kod.";
+      return;
+    }
+    GH.token = o.t; GH.owner = o.o || GH.owner; GH.repo = o.r || GH.repo;
+    if(o.g) GH.gcal = o.g;
+    history.replaceState(null, "", location.pathname);
+    pinNowy();
+  });
+  const s = sec("Przenoszenie z komputera", out, pad);
+  s.className = "sec lock"; v.append(s);
+  setTimeout(()=>pad.ring(), 60);
+}
+function pinNowy(){
+  const v = document.getElementById("view"); v.replaceChildren();
+  const out = el("p",{class:"note",style:"text-align:center;min-height:19px"},
+    "Ustaw PIN na tym urządzeniu — sześć cyfr.");
+  let zajety = false;
+  const pad = pinPad(async pin=>{
+    if(zajety) return; zajety = true;
+    out.textContent = "Łączę…";
+    try{
+      await deriveKey(pin, toB(crypto.getRandomValues(new Uint8Array(16))));
+      await boot(true);
+    }catch(e){
+      zajety = false; pad.wipe();
+      out.textContent = (e && e.status === 401) ? "Token odrzucony." : "Nie udało się połączyć.";
+    }
+  });
+  const s = sec("Nowe urządzenie", out, pad);
+  s.className = "sec lock"; v.append(s);
+  setTimeout(()=>pad.ring(), 60);
+}
+
 async function odswiezAplikacje(){
   try{ const ks = await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); }catch(e){}
   try{ const rs = await navigator.serviceWorker.getRegistrations();
@@ -1335,6 +1458,9 @@ function vUstawienia(){
   if(pol) ap.append(pol);
   kafle.push(ap);
 
+  const tr = (typeof syncTransfer==="function") ? syncTransfer() : null;
+  if(tr) kafle.push(tr);
+
   return {W:kafle};
 }
 
@@ -1467,7 +1593,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-000004";
+const VER = "20261005-001059";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1781,6 +1907,8 @@ async function pullAll(){
 render();
 (async()=>{
   S.ready = true;
+  const pak = (location.hash || "").startsWith("#p=") ? location.hash.slice(3) : null;
+  if(pak){ cfgLoad(); transferScreen(pak); return; }
   if(cfgLoad()){ unlockScreen(); return; }
   setupScreen(GH.token ? "Token jest teraz szyfrowany — ustaw PIN do planera." : "");
 })();
