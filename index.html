@@ -544,7 +544,13 @@ const saveDay = (d,p)=>{ S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d])
 const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, ...(S.week[w]||{})});
 const saveWeek= (w,p)=>{ S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
-const duza = s => { const v=(s||"").trim(); return v ? v[0].toLocaleUpperCase("pl")+v.slice(1) : v; };
+const duza = s => {                 // wielka pierwsza LITERA, nawet gdy wpis zaczyna się od godziny
+  const v = (s||"").trim();
+  if(!v) return v;
+  const i = v.search(/[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/);
+  if(i < 0) return v;
+  return v.slice(0,i) + v[i].toLocaleUpperCase("pl") + v.slice(i+1);
+};
 
 /* ---------- szybki wpis: jedno pole, rozbierane na części ---------- */
 const DNISKROT = {pon:1, wt:2, "śr":3, sr:3, czw:4, pt:5, sob:6, nd:7, niedz:7};
@@ -959,11 +965,11 @@ function vDzis(){
       onclick:()=>{const c=cyklZnakow();
         upd(t.id,{st:c[(c.indexOf(t.st)+1)%c.length]||c[0]})}}, STMARK[t.st]||"•"));
     const span=el("button",{class:"ttxt",title:"Kliknij, by edytować",onclick:()=>{
-      const inp=el("input",{type:"text",value:t.txt});
+      const inp=el("input",{type:"text",value:duza(t.txt)});
       inp.addEventListener("blur",()=>upd(t.id,{txt:duza(inp.value)||t.txt}));
       inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();inp.blur()}});
       span.replaceWith(inp); inp.focus(); inp.select();
-    }}, t.txt);
+    }}, duza(t.txt));
     r.append(span, el("div",{class:"tools"},
       el("button",{class:"ghost",title:"Obszar",onclick:()=>{const ks=Object.keys(AREAS);
         upd(t.id,{area:ks[(ks.indexOf(t.area)+1)%ks.length]})}},(AREAS[t.area]||AREAS.Z).nr),
@@ -977,7 +983,7 @@ function vDzis(){
     if(!t.note && S.notatka!==t.id) return r;
     const ta=el("textarea",{rows:2,class:"tnote",placeholder:"Notatka — szczegóły, nad czym pracujemy…"});
     ta.value=t.note||"";
-    ta.addEventListener("change",()=>upd(t.id,{note:ta.value.trim()}));
+    ta.addEventListener("change",()=>upd(t.id,{note:duza(ta.value)}));
     const paczka=el("div",{class:"taskwrap"}, r, ta);
     if(S.notatka===t.id) setTimeout(()=>ta.focus(),40);
     return paczka;
@@ -1033,7 +1039,7 @@ function vDzis(){
       D.blocks.forEach(b=>{
         const s=+b.s.slice(0,2)+(+b.s.slice(3))/60, e=+b.e.slice(0,2)+(+b.e.slice(3))/60;
         if(s>=pocz && s<pocz+0.5){
-          const opis=[b.txt||((AREAS[b.area]||AREAS.Z).n), b.proj].filter(Boolean).join(" · ");
+          const opis=[duza(b.txt)||duza((AREAS[b.area]||AREAS.Z).n), duza(b.proj)].filter(Boolean).join(" · ");
           cell.append(el("div",{class:"blk"+(b.done?" done":""),
             title:(b.done?"Zrobione":"Kliknij, gdy zrobione")+" · "+b.s+"–"+b.e,
             style:"top:"+((s-pocz)*2*POL)+"px;height:"
@@ -1050,8 +1056,8 @@ function vDzis(){
   D.blocks.forEach(b=>{
     const t1=el("input",{type:"time",value:b.s,class:"tin"});
     const t2=el("input",{type:"time",value:b.e,class:"tin"});
-    const tx=el("input",{type:"text",value:b.txt||"",placeholder:"Nazwa bloku"});
-    const pr=el("input",{type:"text",value:b.proj||"",placeholder:"szczegół — np. który projekt",
+    const tx=el("input",{type:"text",value:duza(b.txt||""),placeholder:"Nazwa bloku"});
+    const pr=el("input",{type:"text",value:duza(b.proj||""),placeholder:"szczegół — np. który projekt",
       style:"width:auto;flex:1 1 150px;min-width:0"});
     const sv=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
       ?{...x,s:t1.value,e:t2.value,txt:duza(tx.value),proj:duza(pr.value)}:x)});
@@ -1119,7 +1125,7 @@ function vDzis(){
       cfgZapisz(); render();
     }},"zapisz ten dzień jako szablon")));
   const secMust=sec("Musi się udać",
-    textRow(D.must,"Jedna rzecz, po której dzień jest udany",v=>saveDay(d,{must:v})));
+    textRow(duza(D.must),"Jedna rzecz, po której dzień jest udany",v=>saveDay(d,{must:duza(v)})));
 
   const ce=calFor(d), showCal=S.cal.on||S.cal.err, secCal=sec("Kalendarz Google");
   calNote(secCal);
@@ -1140,7 +1146,7 @@ function vDzis(){
   const ta=el("textarea",{rows:9,class:"grow",style:"font-family:var(--disp);color:var(--dziennik);font-size:15px",
     placeholder:ink?"Inktober: "+ink:"Co z dziś zostaje?"});
   ta.value=D.journal||"";
-  ta.addEventListener("change",()=>saveDay(d,{journal:ta.value}));
+  ta.addEventListener("change",()=>saveDay(d,{journal:duza(ta.value)}));
   const secDz=sec(ink?("Dziennik · "+mo.getDate()+" "+ink):"Dziennik",ta);
 
   /* --- szybki wpis --- */
@@ -1236,7 +1242,7 @@ function vTydzien(){
       onclick:()=>{S.date=ds;S.view="dzis";S.month=ds.slice(0,7);resub();render()}},
       el("span",{style:"width:56px;flex:0 0 56px;color:var(--ink-2)"},DOW[dowIdx(ds)]+" "+parse(ds).getDate()),
       dd.type?el("span",{class:"chip",style:"flex:0 0 auto"},dd.type):el("span",{style:"width:20px;flex:0 0 20px"}),
-      el("span",{class:"ttxt",style:"color:var(--ink-2)"},dd.must||ev||"—"),
+      el("span",{class:"ttxt",style:"color:var(--ink-2)"},duza(dd.must||ev||"—")),
       el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums"},tasks.length?done+"/"+tasks.length:"")));
   });
 
@@ -1275,14 +1281,14 @@ function vTydzien(){
     el("p",{class:"note"},"Liczby są po to, żeby odróżnić gorszy tydzień od tendencji — nie do oceniania."));
   REVIEW.forEach((qn,i)=>{
     const ta=el("textarea",{rows:2,placeholder:qn}); ta.value=W.review[i]||"";
-    ta.addEventListener("change",()=>saveWeek(w,{review:{...W.review,[i]:ta.value}}));
+    ta.addEventListener("change",()=>saveWeek(w,{review:{...W.review,[i]:duza(ta.value)}}));
     rv.append(el("div",{},el("div",{class:"note"},(i+1)+". "+qn),ta));
   });
 
   const t3=sec("TOP 3 tygodnia");
   [0,1,2].forEach(i=>t3.append(el("div",{class:"row"},
     el("span",{style:"color:var(--ink-3);width:12px"},String(i+1)),
-    textRow(W.top3[i],"Najważniejsza sprawa",v=>{const a=[...W.top3];a[i]=v;saveWeek(w,{top3:a})}))));
+    textRow(duza(W.top3[i]),"Najważniejsza sprawa",v=>{const a=[...W.top3];a[i]=duza(v);saveWeek(w,{top3:a})}))));
 
   const q=sec("Kratki bloków");
   Object.entries(AREAS).filter(([k])=>k!=="R").forEach(([k,v])=>{
@@ -1309,10 +1315,10 @@ function vTydzien(){
     const dd=parse(ds);
     const linie=[DOW[dowIdx(ds)]+" "+dd.getDate()+"."+pad(dd.getMonth()+1)
       + (D.type ? " · "+D.type : "")];
-    if(D.must) linie.push("! "+D.must);
-    ta.forEach(x=>linie.push((STMARK[x.st]||"•")+" "+x.txt
+    if(D.must) linie.push("! "+duza(D.must));
+    ta.forEach(x=>linie.push((STMARK[x.st]||"•")+" "+duza(x.txt)
       + (x.note ? "  ("+x.note.replace(/\s+/g," ")+")" : "")));
-    bl.forEach(x=>linie.push("□ "+x.s+"–"+x.e+" "+(x.txt||"")
+    bl.forEach(x=>linie.push("□ "+x.s+"–"+x.e+" "+duza(x.txt||"")
       + (x.proj?" · "+x.proj:"") + (x.done?" ✓":"")));
     if(D.journal) linie.push("~ "+D.journal.replace(/\s+/g," "));
     return linie.join("\n");
@@ -1362,7 +1368,7 @@ function vMiesiac(){
     c.append(el("div",{class:"dn"},String(dt.getDate()),dd.type?el("span",{class:"chip"},dd.type):null));
     calFor(ds).slice(0,3).forEach(e=>c.append(el("div",{class:"ev",style:"color:var(--ink-2)"},
       (e.t?e.t+" ":"")+e.s)));
-    if(dd.must) c.append(el("div",{class:"ev",style:"color:var(--t)"},dd.must));
+    if(dd.must) c.append(el("div",{class:"ev",style:"color:var(--t)"},duza(dd.must)));
     g.append(c);
   }
   const s=sec(MONTHN[m-1]+" "+y,g);
@@ -1498,9 +1504,9 @@ function vCele(){
   const out=[];
   if(!S.goals.length) out.push(el("p",{class:"note"},"Brak celów. Dodaj pierwszy — rozpisujesz go od marzenia do dnia."));
   S.goals.forEach(g=>{
-    const nameI=el("input",{type:"text",value:g.name||"",placeholder:"Nazwa celu",
+    const nameI=el("input",{type:"text",value:duza(g.name||""),placeholder:"Nazwa celu",
       style:"font-family:var(--disp);font-size:16px"});
-    nameI.addEventListener("change",()=>save("goals/"+g.id,{...g,name:nameI.value}));
+    nameI.addEventListener("change",()=>save("goals/"+g.id,{...g,name:duza(nameI.value)}));
     const s=sec(null,el("div",{class:"row tight",style:"border-bottom:1px solid var(--line-2);padding-bottom:5px"},
       areaDot(g.area),nameI,el("span",{class:"spacer"}),
       el("button",{class:"ghost",title:"Obszar",onclick:()=>{const ks=Object.keys(AREAS);
@@ -1510,8 +1516,8 @@ function vCele(){
     const ruszylo = Object.values(kroki).reduce((n,a)=>n+((a&&a.length)||0),0);
     const grid=el("div",{class:"goalgrid"});
     cols.forEach(([k,label])=>{
-      const ta=el("textarea",{rows:2,placeholder:"—"}); ta.value=g[k]||"";
-      ta.addEventListener("change",()=>save("goals/"+g.id,{...g,[k]:ta.value}));
+      const ta=el("textarea",{rows:2,placeholder:"—"}); ta.value=duza(g[k]||"");
+      ta.addEventListener("change",()=>save("goals/"+g.id,{...g,[k]:duza(ta.value)}));
       const ile = (kroki[k]||[]).length;
       const naglowek = el("div",{class:"row",style:"flex-wrap:nowrap;gap:5px;align-items:baseline"},
         el("span",{style:"flex:1 1 auto;min-width:0"},label),
@@ -1561,16 +1567,16 @@ function vListy(){
   const out=[];
   S.lists.forEach(L=>{
     const items=L.items||[];
-    const ttl=el("input",{type:"text",value:L.title||"",
+    const ttl=el("input",{type:"text",value:duza(L.title||""),
       style:"font-family:var(--disp);font-size:16px"});
-    ttl.addEventListener("change",()=>save("lists/"+L.id,{...L,title:ttl.value}));
+    ttl.addEventListener("change",()=>save("lists/"+L.id,{...L,title:duza(ttl.value)}));
     const s=sec(null,el("div",{class:"row tight",style:"border-bottom:1px solid var(--line-2);padding-bottom:5px"},
       ttl,el("span",{class:"spacer"}),
       el("button",{class:"ghost",title:"Usuń listę",onclick:()=>{S.db&&S.db.doc("lists/"+L.id).delete()}},"✕")));
     const ul=el("div",{class:"tasks"});
     items.forEach(it=>{
-      const i=el("input",{type:"text",value:it.txt});
-      i.addEventListener("change",()=>save("lists/"+L.id,{...L,items:items.map(x=>x.id===it.id?{...x,txt:i.value}:x)}));
+      const i=el("input",{type:"text",value:duza(it.txt)});
+      i.addEventListener("change",()=>save("lists/"+L.id,{...L,items:items.map(x=>x.id===it.id?{...x,txt:duza(i.value)}:x)}));
       ul.append(el("div",{class:"task"+(it.done?" done":"")},
         el("button",{class:"mark",style:"color:var(--t)",onclick:()=>
           save("lists/"+L.id,{...L,items:items.map(x=>x.id===it.id?{...x,done:!x.done}:x)})},it.done?"✓":"•"),
@@ -1580,7 +1586,7 @@ function vListy(){
     });
     const ni=el("input",{type:"text",placeholder:"Nowa pozycja…"});
     const addI=()=>{const v=ni.value.trim(); if(!v)return;
-      save("lists/"+L.id,{...L,items:[...items,{id:uid(),txt:v,done:false}]}); ni.value=""};
+      save("lists/"+L.id,{...L,items:[...items,{id:uid(),txt:duza(v),done:false}]}); ni.value=""};
     ni.addEventListener("keydown",e=>{if(e.key==="Enter")addI()});
     s.append(ul,el("div",{class:"row"},ni,el("button",{class:"btn",onclick:addI},"Dodaj")));
     out.push(s);
@@ -2064,7 +2070,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-012148";
+const VER = "20261005-012437";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
