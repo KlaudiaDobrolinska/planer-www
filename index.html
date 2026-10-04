@@ -1177,7 +1177,8 @@ function setupScreen(msg){
       : e.status===401 ? "Token odrzucony — sprawdź, czy skopiował się w całości."
       : "Nie udało się połączyć: "+e.message; }
   };
-  inTok.addEventListener("keydown",e=>{ if(e.key==="Enter") connect(); });
+  [inTok,inPin,inCal,inRepo].forEach(x=>
+    x.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); connect(); } }));
   v.append(sec("Pierwsze uruchomienie",
     el("p",{class:"note"},"Planer trzyma dane w Twoim prywatnym repozytorium GitHub „planer”. "
       +"Wklej token dostępu — raz na tym urządzeniu."),
@@ -1213,7 +1214,7 @@ function unlockScreen(msg){
     catch(e){ S.ready=true; setupScreen(e.status===401
       ? "Token odrzucony — wpisz nowy." : "Brak połączenia z GitHubem."); }
   };
-  inPin.addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
+  inPin.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); go(); } });
   v.append(sec("Planer zamknięty",
     el("p",{class:"note"},"Wpisz PIN, żeby otworzyć dane."),
     msg ? el("p",{class:"err"},msg) : null,
