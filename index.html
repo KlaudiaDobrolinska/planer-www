@@ -822,7 +822,7 @@ function render(){
 
 /* ---------- magazyn danych: prywatne repozytorium GitHub ---------- */
 const CFG_KEY = "planer.cfg";
-const GH = {owner:"", repo:"", token:"", branch:"main"};
+const GH = {owner:"KlaudiaDobrolinska", repo:"planer", token:"", branch:"main"};
 const FILES = {};            // ścieżka pliku -> {sha, data}
 const SUBS  = [];            // subskrypcje w pamięci
 const DIRTY = new Set();     // pliki do zapisania
@@ -956,26 +956,34 @@ function status(){
 /* ---------- ekran ustawień ---------- */
 function setupScreen(msg){
   const v = document.getElementById("view"); v.replaceChildren();
-  const inRepo = el("input",{type:"text",placeholder:"uzytkownik/planer",value:
-    GH.owner ? GH.owner+"/"+GH.repo : ""});
   const inTok = el("input",{type:"password",placeholder:"github_pat_…",value:GH.token||""});
+  const inRepo = el("input",{type:"text",value:GH.owner+"/"+GH.repo});
+  const adv = el("label",{class:"fld",hidden:true},"Repozytorium",inRepo);
   const out = el("p",{class:"note"});
-  const s = sec("Połączenie z repozytorium",
-    el("p",{class:"note"},"Planer trzyma dane w Twoim prywatnym repozytorium GitHub. Podaj je raz na tym urządzeniu."),
+  const connect = async()=>{
+    const m=(inRepo.value||"").trim().split("/");
+    if(m.length!==2||!m[0]||!m[1]){ out.textContent="Repozytorium w formacie uzytkownik/nazwa."; return; }
+    GH.owner=m[0]; GH.repo=m[1]; GH.token=(inTok.value||"").trim();
+    if(!GH.token){ out.textContent="Wklej token."; return; }
+    out.textContent="Sprawdzam…";
+    try{ await boot(true); }
+    catch(e){ out.textContent = e.status===404
+      ? "Token nie sięga tego repozytorium. Sprawdź, czy ma dostęp do „planer” i uprawnienie Contents: Read and write."
+      : e.status===401 ? "Token odrzucony — sprawdź, czy skopiował się w całości."
+      : "Nie udało się połączyć: "+e.message; }
+  };
+  inTok.addEventListener("keydown",e=>{ if(e.key==="Enter") connect(); });
+  v.append(sec("Pierwsze uruchomienie",
+    el("p",{class:"note"},"Planer trzyma dane w Twoim prywatnym repozytorium GitHub „planer”. "
+      +"Wklej token dostępu — raz na tym urządzeniu."),
     msg ? el("p",{class:"err"},msg) : null,
-    el("label",{class:"fld"},"Repozytorium",inRepo),
-    el("label",{class:"fld"},"Token (fine-grained, Contents: Read and write)",inTok),
-    el("div",{class:"row"},el("button",{class:"btn",onclick:async()=>{
-      const m=(inRepo.value||"").trim().split("/");
-      if(m.length!==2||!m[0]||!m[1]){ out.textContent="Wpisz w formacie uzytkownik/nazwa-repo."; return; }
-      GH.owner=m[0]; GH.repo=m[1]; GH.token=(inTok.value||"").trim();
-      out.textContent="Sprawdzam…";
-      try{ await boot(true); }catch(e){ out.textContent = e.status===404
-        ? "Nie widzę tego repozytorium. Sprawdź nazwę i uprawnienia tokenu."
-        : e.status===401 ? "Token odrzucony." : "Nie udało się połączyć: "+e.message; }
-    }},"Połącz"),out),
-    el("p",{class:"note"},"Token zostaje tylko w tej przeglądarce. Nie wysyłaj go nikomu, także w rozmowie z Claude."));
-  v.append(s);
+    el("label",{class:"fld"},"Token GitHub",inTok),
+    adv,
+    el("div",{class:"row"},
+      el("button",{class:"btn",onclick:connect},"Połącz"),
+      el("button",{class:"ghost",onclick:()=>{adv.hidden=!adv.hidden}},"zmień repozytorium"),
+      out),
+    el("p",{class:"note"},"Token zostaje tylko w tej przeglądarce. Nie wysyłaj go nikomu — także mnie w rozmowie.")));
 }
 
 /* ---------- start ---------- */
