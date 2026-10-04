@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="Planer">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="ikona-180.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23bd7f90'/%3E%3Crect x='9' y='8' width='14' height='17' rx='2' fill='%23fffdfb'/%3E%3Cpath d='M12 13h8M12 17h8M12 21h5' stroke='%23bd7f90' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -1211,7 +1213,28 @@ const DIRTY = new Set();     // pliki do zapisania
 let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
 
 const TOK_KEY = "planer.gtok";
-const VER = "20261004-234428";
+const SNAP_KEY = "planer.snap";
+let snapTimer = null;
+async function snapSave(){                 // kopia lokalna, zaszyfrowana tym samym PIN-em
+  if(!AESKEY) return;
+  try{
+    const dane = JSON.stringify({files:FILES, dirty:[...DIRTY], at:Date.now()});
+    localStorage.setItem(SNAP_KEY, JSON.stringify(await seal(dane)));
+  }catch(e){}                              // np. przepełniona pamięć — trudno, to tylko kopia
+}
+function snapLater(){ clearTimeout(snapTimer); snapTimer = setTimeout(snapSave, 1200); }
+async function snapLoad(){
+  if(!AESKEY) return false;
+  try{
+    const v = JSON.parse(localStorage.getItem(SNAP_KEY)||"null"); if(!v) return false;
+    const o = JSON.parse(await unseal(v));
+    if(!o || !o.files) return false;
+    Object.keys(o.files).forEach(k=>{ FILES[k] = o.files[k]; });
+    (o.dirty||[]).forEach(f=>DIRTY.add(f));
+    return true;
+  }catch(e){ return false; }
+}
+const VER = "20261004-234916";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1302,11 +1325,13 @@ async function push(file){
 let saveTimer = null;
 function schedule(file){
   DIRTY.add(file);
+  snapLater();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, 1500);
 }
 async function flush(){
   if(SAVING || !DIRTY.size) return;
+  if(!navigator.onLine){ status(); return; }
   SAVING = true; SAVE_ERR = null; status();
   const todo = [...DIRTY]; DIRTY.clear();
   try{ for(const f of todo) await push(f); SAVED_AT = Date.now(); }
@@ -1372,6 +1397,8 @@ function colRef(col, filters, ord){
 function status(){
   const b = document.getElementById("sync"); if(!b) return;
   b.className = "btn icon";
+  if(!navigator.onLine){ b.textContent = "bez sieci"; b.style.color = "var(--t)";
+    b.title = DIRTY.size ? "Zapiszę, gdy wróci internet." : "Pracujesz na kopii lokalnej."; return; }
   if(SAVE_ERR){ b.textContent = "błąd zapisu"; b.title = SAVE_ERR; b.style.color = "var(--r)"; }
   else if(SAVING || DIRTY.size){ b.textContent = "zapisuję…"; b.title = ""; b.style.color = ""; }
   else if(PULLING){ b.textContent = "odświeżam…"; b.title=""; b.style.color=""; }
@@ -1493,7 +1520,18 @@ const DATA_FILES = ["data/goals.json","data/lists.json","data/weeks.json",
 async function boot(fromSetup){
   const month = S.month;
   const files = DATA_FILES.concat(["data/days-"+month+".json"]);
-  for(const f of files) await pull(f);
+  const zKopii = await snapLoad();
+  let bezSieci = false;
+  for(const f of files){
+    try{ await pull(f); }
+    catch(e){
+      if(e && e.status) throw e;           // zły token albo repozytorium — pokaż ustawienia
+      bezSieci = true;                     // brak internetu
+      if(!zKopii) throw e;
+    }
+  }
+  S.offline = bezSieci;
+  if(!bezSieci) snapLater();
   if(fromSetup) await cfgSave();
   await gRestore();
   S.db = {doc:docRef, collection:(p)=>colRef(p)};
@@ -1503,7 +1541,7 @@ async function boot(fromSetup){
 async function pullAll(){
   if(PULLING || DIRTY.size || SAVING) return;
   PULLING = true; status();
-  try{ for(const f of Object.keys(FILES)) await pull(f); fire(); }catch(e){}
+  try{ for(const f of Object.keys(FILES)) await pull(f); fire(); snapLater(); }catch(e){}
   PULLING = false; status();
 }
 render();
@@ -1512,6 +1550,14 @@ render();
   if(cfgLoad()){ unlockScreen(); return; }
   setupScreen(GH.token ? "Token jest teraz szyfrowany — ustaw PIN do planera." : "");
 })();
+window.addEventListener("online", ()=>{ S.offline=false; status(); flush().then(pullAll); });
+window.addEventListener("offline", ()=>{ S.offline=true; status(); });
+if("serviceWorker" in navigator)
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+window.addEventListener("online", ()=>{ S.offline=false; status(); flush().then(pullAll); });
+window.addEventListener("offline", ()=>{ S.offline=true; status(); });
+if("serviceWorker" in navigator)
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 setInterval(pullAll, 60000);
 setInterval(()=>{ if(S.db) calLoad(); }, 300000);
 let HID = 0;                       // po 15 min w tle planer zamyka się sam
