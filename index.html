@@ -195,6 +195,8 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .mini .mday.wtyg{background:var(--pink-soft)}
 .mini .mday.dzisiaj{box-shadow:inset 0 0 0 1px var(--pink)}
 .mini .mday.wybrany{background:var(--pink);color:#fff;font-weight:600}
+.kroklicz{font-size:10px;color:#fff;background:var(--ink);border-radius:9px;padding:1px 6px;
+  letter-spacing:0;text-transform:none;flex:0 0 auto}
 .tin{width:78px;flex:0 0 auto}
 .tnote{margin:0 4px 6px 28px;width:calc(100% - 34px);font-size:13px;color:var(--fg-2);
   border:1px solid var(--line);border-radius:6px;padding:5px 7px;background:var(--paper-2)}
@@ -519,6 +521,16 @@ const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, ...(S.week
 const saveWeek= (w,p)=>{ S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
 const duza = s => { const v=(s||"").trim(); return v ? v[0].toLocaleUpperCase("pl")+v.slice(1) : v; };
+
+/* ---------- dopisanie zadania do dowolnego dnia ---------- */
+async function dopiszZadanie(ds, zadanie){
+  if(!S.db) return false;
+  let dane = {};
+  try{ const s = await S.db.doc("days/"+ds).get(); if(s.exists) dane = s.data()||{}; }catch(e){ return false; }
+  const lista = Array.isArray(dane.tasks) ? dane.tasks : [];
+  await S.db.doc("days/"+ds).set({...dane, tasks:[...lista, zadanie]});
+  return true;
+}
 
 /* ---------- kotwice: zadania, które pojawiają się same ---------- */
 let kotwicaTrwa = null;
@@ -1258,13 +1270,49 @@ function vCele(){
       el("button",{class:"ghost",title:"Obszar",onclick:()=>{const ks=Object.keys(AREAS);
         save("goals/"+g.id,{...g,area:ks[(ks.indexOf(g.area)+1)%ks.length]})}},(AREAS[g.area]||AREAS.Z).nr),
       el("button",{class:"ghost",title:"Usuń cel",onclick:()=>{S.db&&S.db.doc("goals/"+g.id).delete()}},"✕")));
+    const kroki = g.kroki || {};
+    const ruszylo = Object.values(kroki).reduce((n,a)=>n+((a&&a.length)||0),0);
     const grid=el("div",{class:"goalgrid"});
     cols.forEach(([k,label])=>{
       const ta=el("textarea",{rows:2,placeholder:"—"}); ta.value=g[k]||"";
       ta.addEventListener("change",()=>save("goals/"+g.id,{...g,[k]:ta.value}));
-      grid.append(el("label",{class:"fld"},label,ta));
+      const ile = (kroki[k]||[]).length;
+      const naglowek = el("div",{class:"row",style:"flex-wrap:nowrap;gap:5px;align-items:baseline"},
+        el("span",{style:"flex:1 1 auto;min-width:0"},label),
+        ile ? el("span",{class:"kroklicz",title:"Tyle razy ten krok trafił do dniówki"},"✓"+ile) : null,
+        el("button",{class:"ghost",title:"Zrób z tego zadanie w wybranym dniu",
+          onclick:()=>{ S.krok = (S.krok===g.id+"|"+k) ? null : g.id+"|"+k; render(); }},"→"));
+      const pole = el("label",{class:"fld"},naglowek,ta);
+      if(S.krok === g.id+"|"+k){
+        const data = el("input",{type:"date",value:S.date,style:"width:auto;flex:1 1 130px"});
+        const tresc = el("input",{type:"text",value:duza(g[k]||""),placeholder:"Treść zadania",
+          style:"width:auto;flex:2 1 160px;min-width:0"});
+        const wyslij = async()=>{
+          const txt = duza(tresc.value); if(!txt) return;
+          const ds = data.value || S.date;
+          const ok = await dopiszZadanie(ds, {id:uid(), txt, st:"todo",
+            area:g.area||"T", minor:false, zCelu:g.id});
+          if(!ok) return;
+          const nowe = {...kroki, [k]: [...(kroki[k]||[]), {d:ds, txt}]};
+          save("goals/"+g.id, {...g, kroki:nowe});
+          S.krok = null; render();
+        };
+        tresc.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); wyslij(); } });
+        pole.append(el("div",{class:"row",style:"margin-top:4px"}, data, tresc,
+          el("button",{class:"btn",onclick:wyslij},"Do dniówki"),
+          el("button",{class:"ghost",onclick:()=>{S.krok=null;render()}},"anuluj")));
+        if((kroki[k]||[]).length)
+          pole.append(el("p",{class:"note"},"Już w dniówkach: "
+            + (kroki[k]||[]).map(x=>parse(x.d).getDate()+"."+(parse(x.d).getMonth()+1)).join(", ")));
+      }
+      grid.append(pole);
     });
-    s.append(grid); out.push(s);
+    s.append(grid);
+    s.append(el("p",{class:"note"},
+      ruszylo ? ("Ruszyło " + ruszylo + " krok" + (ruszylo===1?"":(ruszylo<5?"i":"ów"))
+                 + " — tyle razy coś z tego celu trafiło do konkretnego dnia.")
+              : "Żaden krok jeszcze nie trafił do dniówki. Strzałka → przy kroku robi z niego zadanie."));
+    out.push(s);
   });
   out.push(el("button",{class:"btn",style:"align-self:flex-start",onclick:()=>{
     S.db&&S.db.collection("goals").add({name:"Nowy cel",area:"T",ord:S.goals.length+1,
@@ -1923,7 +1971,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-005827";
+const VER = "20261005-010202";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
