@@ -226,6 +226,10 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .cell.kw{width:100%;min-width:0;height:auto;aspect-ratio:1;border:1px solid var(--line);border-radius:3px;
   background:transparent;display:block;padding:0;border-left:1px solid var(--line)}
 .legkw{width:17px;height:17px;min-height:17px;flex:0 0 17px;aspect-ratio:auto;border-radius:4px}
+.tb.dom td{padding:2px;text-align:center;border-top:0}
+.tb.dom .cell.kw{width:24px;height:24px;min-width:24px;aspect-ratio:auto;margin:0 auto;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;
+  font-variant-numeric:tabular-nums}
 @media (max-width:900px){ .tb.siatka th:not(.co5){color:transparent} }
 @media (max-width:720px){
   .tb.siatka{table-layout:auto;width:auto}          /* na telefonie przesuwamy w bok */
@@ -1266,27 +1270,40 @@ function vTydzien(){
   });
 
   const hw=sec("Dom i pielęgnacja");
-  const tb=el("table",{class:"tb"});
+  const tb=el("table",{class:"tb dom"});
   const hr=el("tr",{},el("th",{class:"lft"},""));
   days.forEach(ds=>hr.append(el("th",{},DOW[dowIdx(ds)])));
   tb.append(el("thead",{},hr));
   const tbody=el("tbody");
   HOME.forEach(([k,label])=>{
-    const tr=el("tr",{},el("td",{class:"lft"},label));
+    const tr=el("tr",{},el("td",{class:"lft"},duza(label)));
     days.forEach(ds=>{
       const cur=(W.home[ds]||{})[k];
-      tr.append(el("td",{},el("button",{class:"cell",style:"color:var(--z)",onclick:()=>{
+      const klasa = "cell kw" + (cur==null ? "" : (k==="pranie" ? " s1" : " s"+cur));
+      const opis = cur==null ? "nic nie zapisano"
+        : (k==="pranie" ? (cur+" wsad"+(cur===1?"":(cur<5?"y":"ów")))
+                        : (cur===1?"zrobione":"wersja skrócona"));
+      tr.append(el("td",{},el("button",{class:klasa,
+        title:label+" · "+DOW[dowIdx(ds)]+" — "+opis,
+        onclick:()=>{
         const nx = k==="pranie" ? (cur==null?1:(cur>=3?null:cur+1)) : (cur===1?2:(cur===2?null:1));
         const h={...W.home,[ds]:{...(W.home[ds]||{})}};
         if(nx==null) delete h[ds][k]; else h[ds][k]=nx;
         saveWeek(w,{home:h});
-      }}, cur==null?"":(k==="pranie"?String(cur):HMARK[cur]))));
+      }}, k==="pranie" && cur ? String(cur) : "")));
     });
     tbody.append(tr);
   });
   tb.append(tbody);
   hw.append(el("div",{class:"scrollx"},tb),
-    el("p",{class:"note"},"Pranie: liczba wsadów. Reszta: ■ zrobione, ◩ skrócona. Lek tygodniowy — poniedziałek."));
+    el("div",{class:"row",style:"gap:12px"},
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw s1",style:"pointer-events:none"}),
+        el("span",{class:"note"},"zrobione")),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw s2",style:"pointer-events:none"}),
+        el("span",{class:"note"},"wersja skrócona")),
+      el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw",style:"pointer-events:none"}),
+        el("span",{class:"note"},"pusta"))),
+    el("p",{class:"note"},"Pranie: cyfra w kratce to liczba wsadów. Lek tygodniowy — poniedziałek."));
 
   const rv=sec("Przegląd tygodnia");
   const pw = podsumowanie(days);
@@ -2254,7 +2271,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-014121";
+const VER = "20261005-014732";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
