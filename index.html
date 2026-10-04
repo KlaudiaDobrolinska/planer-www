@@ -1593,7 +1593,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-002136";
+const VER = "20261005-002249";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1776,15 +1776,14 @@ function pinPad(onDone){
   for(let i=0;i<6;i++){ const b = el("span",{class:"pinbox"}); boxes.push(b); dots.append(b); }
   const paint = ()=>{ const n = inp.value.length;
     boxes.forEach((b,i)=>{ b.className = "pinbox" + (i<n ? " on" : (i===n ? " cur" : "")); }); };
-  let gotowe = false;            // pierwsze chwile: przegladarka moze sama wstawic stary wpis
+  const powstalo = Date.now();   // pierwsze chwile: przegladarka moze sama wstawic stary wpis
   inp.addEventListener("input",()=>{
     inp.value = inp.value.replace(/[^0-9]/g,"").slice(0,6);
-    if(!gotowe){ inp.value = ""; paint(); return; }
+    if(Date.now() - powstalo < 250){ inp.value = ""; paint(); return; }
     paint();
     if(inp.value.length===6) onDone(inp.value);
   });
-  requestAnimationFrame(()=>{ inp.value = ""; paint();
-    setTimeout(()=>{ gotowe = true; }, 150); });
+  setTimeout(()=>{ inp.value = ""; paint(); }, 0);
   inp.addEventListener("focus",paint);
   wrap.append(dots,inp);
   wrap.pin   = ()=>inp.value;
