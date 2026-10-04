@@ -175,10 +175,14 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .hcell{height:24px;position:relative;border-top:1px solid var(--line-2);border-left:1px solid var(--line-2)}
 .hr:first-child .hlab,.hr:first-child .hcell{border-top:0}
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
-  overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;line-height:20px}
+  overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
+  display:flex;align-items:center;line-height:1.25;z-index:1}
 .blk span{color:var(--fg)}
 
 /* tabele */
+.tin{width:78px;flex:0 0 auto}
+.blkrow{flex-wrap:wrap}
+.blkrow .ttxt,.blkrow input[type=text]{flex:1 1 110px;min-width:0}
 .tb{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;table-layout:fixed}
 .tb .lft{width:38%}
 .tb.hab .lft{width:26%}
@@ -264,6 +268,9 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 :root[data-skin="mac"] textarea:focus{border-color:var(--pink);
   box-shadow:0 0 0 3px var(--pink-soft);outline:0}
 :root[data-skin="mac"] .ttxt{border:0;background:transparent;padding:0}
+:root[data-skin="mac"] .tin{width:106px}
+:root[data-skin="mac"] .blkrow{gap:7px;padding-top:9px;padding-bottom:9px}
+:root[data-skin="mac"] .sec>.axis{padding:0;border:0;border-radius:0;background:transparent}
 :root[data-skin="mac"] .ttxt:focus{box-shadow:none}
 
 /* pasek narzędzi zamiast karty tytułowej */
@@ -573,63 +580,118 @@ async function calLoad(interactive, force){
   }catch(e){ S.cal.err = S.cal.ev.length ? null : "offline"; }
   render();
 }
+function calFields(e){                 // wpis Google -> pola formularza
+  const allDay = !!(e.start && e.start.date);
+  const sd = allDay ? e.start.date : ((e.start&&e.start.dateTime)||"").slice(0,10);
+  let ed = allDay ? addD((e.end&&e.end.date)||sd,-1)
+                  : ((e.end&&e.end.dateTime)||"").slice(0,10);
+  if(!ed) ed = sd;
+  return {id:e.id, allDay, title:e.summary||"", loc:e.location||"", desc:e.description||"",
+    sd, ed,
+    st:(e.start&&e.start.dateTime)?e.start.dateTime.slice(11,16):"09:00",
+    et:(e.end&&e.end.dateTime)?e.end.dateTime.slice(11,16):"10:00",
+    guests:(e.attendees||[]).filter(a=>!a.self).map(a=>a.email).join(", "),
+    notify:true};
+}
 function evBody(f){
   const b = {summary: f.title || "(bez nazwy)"};
-  if(f.allDay){ b.start={date:f.date}; b.end={date:addD(f.date,1)}; }
-  else{
-    b.start = {dateTime:f.date+"T"+f.from+":00", timeZone:GTZ};
-    b.end   = {dateTime:(f.to<=f.from ? addD(f.date,1) : f.date)+"T"+f.to+":00", timeZone:GTZ};
+  b.location = f.loc || "";
+  b.description = f.desc || "";
+  if(f.allDay){
+    b.start = {date:f.sd};
+    b.end   = {date:addD((f.ed && f.ed>=f.sd) ? f.ed : f.sd, 1)};
+  }else{
+    let ed = (f.ed && f.ed>=f.sd) ? f.ed : f.sd;
+    if(ed===f.sd && f.et<=f.st) ed = addD(f.sd,1);
+    b.start = {dateTime:f.sd+"T"+f.st+":00", timeZone:GTZ};
+    b.end   = {dateTime:ed+"T"+f.et+":00", timeZone:GTZ};
   }
+  b.attendees = (f.guests||"").split(/[,;\s]+/)
+    .filter(x=>x.indexOf("@")>0).map(email=>({email}));
   return b;
 }
+async function calEnsure(){            // wołane z kliknięcia, więc okienko Google jest dozwolone
+  if(gValid()) return true;
+  try{ await gToken(true); return true; }
+  catch(e){ S.cal.on=false; S.cal.err=(e&&e.code)||"connect"; render(); return false; }
+}
 async function calSave(f){
-  if(!f.title){ S.cal.msg="Wpisz nazwę."; render(); return; }
+  if(!f.title){ S.cal.msg="Wpisz nazwę wydarzenia."; render(); return; }
+  if(!gValid() && !(await calEnsure())) return;
   S.cal.msg = "Zapisuję…"; render();
+  const guests = (f.guests||"").indexOf("@")>0;
+  const q = "?sendUpdates=" + (guests && f.notify ? "all" : "none");
   try{
     const b = JSON.stringify(evBody(f));
-    if(f.id) await calApi("/calendars/primary/events/"+encodeURIComponent(f.id),{method:"PATCH",body:b});
-    else     await calApi("/calendars/primary/events",{method:"POST",body:b});
+    if(f.id) await calApi("/calendars/primary/events/"+encodeURIComponent(f.id)+q,
+                          {method:"PATCH", body:b});
+    else     await calApi("/calendars/primary/events"+q, {method:"POST", body:b});
     calEdit = null; S.cal.msg = null; await calLoad(false,true);
   }catch(e){ S.cal.msg = e.message || CALERR[e.code] || "Nie udało się zapisać."; render(); }
 }
 async function calDel(id){
+  if(!gValid() && !(await calEnsure())) return;
   S.cal.msg = "Usuwam…"; render();
   try{
-    await calApi("/calendars/primary/events/"+encodeURIComponent(id),{method:"DELETE"});
+    await calApi("/calendars/primary/events/"+encodeURIComponent(id)+"?sendUpdates=none",
+                 {method:"DELETE"});
     calEdit = null; S.cal.msg = null; await calLoad(false,true);
   }catch(e){ S.cal.msg = e.message || CALERR[e.code] || "Nie udało się usunąć."; render(); }
 }
 function calRow(e, d){
-  return el("button",{class:"task",onclick:()=>{
-      calEdit = {id:e.id, date:d, title:e.s, allDay:e.allDay,
-                 from: e.st ? e.st.slice(11,16) : "09:00",
-                 to:   e.en ? e.en.slice(11,16) : "10:00"};
-      S.cal.msg = null; render(); }},
+  return el("button",{class:"task",onclick:async()=>{
+      if(!await calEnsure()) return;
+      calEdit = calFields(e.raw); calEdit.date = d; S.cal.msg = null; render(); }},
     el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums;"
-      +"min-width:42px;display:inline-block"}, e.t || "cały"),
+      +"min-width:48px;display:inline-block"}, e.t || "cały dzień"),
     el("span",{}, e.s));
 }
 function calForm(box, d){
   const f = calEdit;
-  const inT = el("input",{type:"text",value:f.title||"",placeholder:"Nazwa wpisu"});
-  const inA = el("input",{type:"checkbox"}); inA.checked = !!f.allDay;
-  const inF = el("input",{type:"time",value:f.from||"09:00"});
-  const inE = el("input",{type:"time",value:f.to||"10:00"});
-  const times = el("div",{class:"row"},
-    el("span",{class:"note"},"od"),inF,el("span",{class:"note"},"do"),inE);
-  times.hidden = !!f.allDay;
-  inA.addEventListener("change",()=>{ times.hidden = inA.checked; });
-  inT.addEventListener("keydown",e=>{ if(e.key==="Enter") calSave(grab()); });
-  const grab = ()=>({id:f.id, date:d, title:(inT.value||"").trim(), allDay:inA.checked,
-                     from:inF.value||"09:00", to:inE.value||"10:00"});
+  const inT  = el("input",{type:"text",value:f.title||"",placeholder:"Nazwa wydarzenia"});
+  const inA  = el("input",{type:"checkbox"}); inA.checked = !!f.allDay;
+  const inSD = el("input",{type:"date",value:f.sd||d});
+  const inST = el("input",{type:"time",value:f.st||"09:00"});
+  const inED = el("input",{type:"date",value:f.ed||f.sd||d});
+  const inET = el("input",{type:"time",value:f.et||"10:00"});
+  const inG  = el("input",{type:"text",value:f.guests||"",
+                 placeholder:"adresy e-mail, po przecinku"});
+  const inL  = el("input",{type:"text",value:f.loc||"",placeholder:"gabinet, adres, link"});
+  const inD  = el("textarea",{rows:3,placeholder:"notatka do wydarzenia"}); inD.value = f.desc||"";
+  const inN  = el("input",{type:"checkbox"}); inN.checked = f.notify!==false;
+
+  const rowST = el("label",{class:"fld"},"Początek",
+    el("div",{class:"row"},inSD,inST));
+  const rowET = el("label",{class:"fld"},"Koniec",
+    el("div",{class:"row"},inED,inET));
+  const notify = el("label",{class:"row",style:"gap:7px"},inN,
+    el("span",{class:"note"},"wyślij zaproszenie gościom"));
+  const syncTimes = ()=>{ inST.hidden = inET.hidden = inA.checked; };
+  const syncNotify = ()=>{ notify.hidden = inG.value.indexOf("@") < 0; };
+  inA.addEventListener("change",syncTimes);
+  inG.addEventListener("input",syncNotify);
+  syncTimes(); syncNotify();
+
+  const grab = ()=>({id:f.id, date:d, title:(inT.value||"").trim(),
+    allDay:inA.checked, sd:inSD.value||d, ed:inED.value||inSD.value||d,
+    st:inST.value||"09:00", et:inET.value||"10:00",
+    guests:(inG.value||"").trim(), loc:(inL.value||"").trim(),
+    desc:inD.value||"", notify:inN.checked});
+  inT.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); calSave(grab()); } });
+
   box.append(
-    el("label",{class:"fld"}, f.id ? "Zmień wpis" : "Nowy wpis", inT),
-    el("label",{class:"row",style:"gap:6px"}, inA, el("span",{class:"note"},"cały dzień")),
-    times,
+    el("label",{class:"fld"}, f.id ? "Zmień wydarzenie" : "Nowe wydarzenie", inT),
+    el("label",{class:"row",style:"gap:7px"}, inA, el("span",{class:"note"},"cały dzień")),
+    rowST, rowET,
+    el("label",{class:"fld"},"Goście",inG),
+    notify,
+    el("label",{class:"fld"},"Miejsce",inL),
+    el("label",{class:"fld"},"Komentarz",inD),
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:()=>calSave(grab())}, f.id ? "Zapisz" : "Dodaj"),
       f.id ? el("button",{class:"ghost",onclick:()=>{
-        if(confirm("Usunąć „"+(f.title||"wpis")+"” z Kalendarza Google?")) calDel(f.id); }},"usuń") : null,
+        if(confirm("Usunąć „"+(f.title||"wydarzenie")+"” z Kalendarza Google?")) calDel(f.id); }},
+        "usuń") : null,
       el("button",{class:"ghost",onclick:()=>{ calEdit=null; S.cal.msg=null; render(); }},"anuluj")));
   setTimeout(()=>{ if(!f.id) inT.focus(); },30);
 }
@@ -650,7 +712,7 @@ function calFor(dateStr){
     return sd===dateStr;
   }).map(e=>({id:e.id, t:(e.start&&e.start.dateTime)?e.start.dateTime.slice(11,16):"",
       s:e.summary||"(bez nazwy)", allDay:!!(e.start&&e.start.date),
-      st:(e.start&&e.start.dateTime)||"", en:(e.end&&e.end.dateTime)||""}))
+      st:(e.start&&e.start.dateTime)||"", en:(e.end&&e.end.dateTime)||"", raw:e}))
    .sort((a,b)=>a.t.localeCompare(b.t));
 }
 const CALERR = {
@@ -727,12 +789,12 @@ function vDzis(){
   }
   const bl=el("div",{class:"tasks",style:"margin-top:7px"});
   D.blocks.forEach(b=>{
-    const t1=el("input",{type:"time",value:b.s,style:"width:78px"});
-    const t2=el("input",{type:"time",value:b.e,style:"width:78px"});
+    const t1=el("input",{type:"time",value:b.s,class:"tin"});
+    const t2=el("input",{type:"time",value:b.e,class:"tin"});
     const tx=el("input",{type:"text",value:b.txt||"",placeholder:"Nazwa bloku"});
     const sv=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,s:t1.value,e:t2.value,txt:tx.value}:x)});
     [t1,t2,tx].forEach(i=>i.addEventListener("change",sv));
-    bl.append(el("div",{class:"task"},
+    bl.append(el("div",{class:"task blkrow"},
       el("button",{class:"mark",style:"color:"+(AREAS[b.area]||AREAS.Z).c,title:"Obszar",
         onclick:()=>{const ks=Object.keys(AREAS);
           saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,area:ks[(ks.indexOf(b.area)+1)%ks.length]}:x)})}},"■"),
@@ -759,8 +821,10 @@ function vDzis(){
     else ce.forEach(e=>secCal.append(calRow(e,d)));
     if(S.cal.on){
       if(calEdit && calEdit.date===d) calForm(secCal,d);
-      else secCal.append(el("div",{class:"row"},el("button",{class:"ghost",onclick:()=>{
-        calEdit={date:d,from:"09:00",to:"10:00"}; S.cal.msg=null; render(); }},"+ dodaj wpis")));
+      else secCal.append(el("div",{class:"row"},el("button",{class:"ghost",onclick:async()=>{
+        if(!await calEnsure()) return;
+        calEdit={date:d,sd:d,ed:d,st:"09:00",et:"10:00",notify:true};
+        S.cal.msg=null; render(); }},"+ dodaj wydarzenie")));
     }
   }
   if(S.cal.msg) secCal.append(el("p",{class:"note"},S.cal.msg));
@@ -888,8 +952,12 @@ function vTrackery(){
     const tr=el("tr",{class:dowIdx(ds)>=5?"wk":""},el("td",{class:"lft"},i+" "+DOW[dowIdx(ds)]));
     HABITS.forEach(([k])=>{
       const cur=(H[i]||{})[k];
-      tr.append(el("td",{},el("button",{class:"cell",onclick:()=>{
-        const nh={...H,[i]:{...(H[i]||{}),[k]:(cur===1?2:(cur===2?0:(cur===0?3:1)))}};
+      tr.append(el("td",{},el("button",{class:"cell",title:"Klikaj, by zmieniać; po ostatnim stanie wraca pusta",
+        onclick:()=>{
+        const cyc=[1,2,0,3,null], nx=cyc[(cyc.indexOf(cur==null?null:cur)+1)%cyc.length];
+        const day={...(H[i]||{})};
+        if(nx==null) delete day[k]; else day[k]=nx;
+        const nh={...H,[i]:day};
         S.habits[S.month]=nh; save("habits/"+S.month,nh); render();
       }}, cur==null?"":HMARK[cur])));
     });
@@ -1143,7 +1211,7 @@ const DIRTY = new Set();     // pliki do zapisania
 let   SAVING = false, SAVED_AT = 0, SAVE_ERR = null, PULLING = false;
 
 const TOK_KEY = "planer.gtok";
-const VER = "20261004-233645";
+const VER = "20261004-234428";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -1274,7 +1342,7 @@ function colRef(col, filters, ord){
       Object.keys(FILES).filter(f=>f.startsWith("data/days-"))
         .forEach(f => out.push(...Object.entries(FILES[f].data)));
     } else {
-      const f = FILES["data/"+col]; if(f) out = Object.entries(f.data);
+      const f = FILES["data/"+col+".json"]; if(f) out = Object.entries(f.data);
     }
     filters.forEach(([fl,op,v]) => out = out.filter(([k,d]) => {
       const x = d[fl];
