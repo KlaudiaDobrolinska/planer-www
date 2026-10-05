@@ -191,6 +191,8 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
   display:flex;align-items:center;line-height:1.2;font-size:11px;z-index:1;cursor:pointer}
+.blk.waski{font-size:10px;padding:0 4px;background:color-mix(in srgb,var(--paper) 92%,transparent)}
+.blk.waski.done{background:color-mix(in srgb,currentColor 24%,transparent)}
 .blk.done{background:color-mix(in srgb,currentColor 24%,transparent)}
 .blk.done span{font-weight:600}
 .blk span{color:var(--fg)}
@@ -1157,6 +1159,36 @@ function vDzis(){
     saveDay(d,{blocks:[...D.blocks,{id:uid(), s:pad(hh)+":"+pad(mm),
       e:pad(kon.getHours())+":"+pad(kon.getMinutes()), area:"T", txt:"", done:false}]});
   };
+  /* bloki, które się zazębiają, dzielą szerokość między siebie */
+  const ukladBlokow=(bl)=>{
+    const naGodz=(x)=>+x.slice(0,2)+(+x.slice(3))/60;
+    const poz=bl.map(b=>{
+      const s=naGodz(b.s);
+      return {id:b.id, s, e:Math.max(naGodz(b.e), s+0.25)};
+    }).sort((a,b)=>a.s-b.s || a.e-b.e);
+    const mapa={};
+    let grupa=[], koniec=null;
+    const zamknij=()=>{
+      if(!grupa.length) return;
+      const kol=[];
+      grupa.forEach(x=>{
+        let i=kol.findIndex(k=>k<=x.s+1e-9);
+        if(i<0) i=kol.length;
+        kol[i]=x.e; x.col=i;
+      });
+      grupa.forEach(x=>{ mapa[x.id]={col:x.col, n:kol.length}; });
+      grupa=[]; koniec=null;
+    };
+    poz.forEach(x=>{
+      if(koniec!==null && x.s >= koniec-1e-9) zamknij();
+      grupa.push(x);
+      koniec = (koniec===null) ? x.e : Math.max(koniec, x.e);
+    });
+    zamknij();
+    return mapa;
+  };
+  const uklad = ukladBlokow(D.blocks);
+
   /* puste godziny nocne zwijamy, ale nigdy nie chowamy bloku */
   let hOd=H0, hDo=H1;
   if(!S.osPelna){
@@ -1186,10 +1218,14 @@ function vDzis(){
         const s=+b.s.slice(0,2)+(+b.s.slice(3))/60, e=+b.e.slice(0,2)+(+b.e.slice(3))/60;
         if(s>=pocz && s<pocz+0.25){
           const opis=[duza(b.txt)||duza((AREAS[b.area]||AREAS.K).n), duza(b.proj)].filter(Boolean).join(" · ");
-          cell.append(el("div",{class:"blk"+(b.done?" done":""),
-            title:(b.done?"Zrobione":"Kliknij, gdy zrobione")+" · "+b.s+"–"+b.e,
+          const u = uklad[b.id] || {col:0, n:1};
+          const szer = 100/u.n, lewo = u.col*szer;
+          cell.append(el("div",{class:"blk"+(b.done?" done":"")+(u.n>1?" waski":""),
+            title:(b.done?"Zrobione":"Kliknij, gdy zrobione")+" · "+b.s+"–"+b.e
+              +(u.n>1?" · "+(u.col+1)+" z "+u.n+" równolegle":""),
             style:"top:"+((s-pocz)*4*KW)+"px;height:"
-              +Math.max(16,(Math.max(.25,Math.min(e,H1+1)-s)*4*KW-2))+"px;color:"
+              +Math.max(16,(Math.max(.25,Math.min(e,H1+1)-s)*4*KW-2))+"px;"
+              +"left:calc("+lewo+"% + 3px);width:calc("+szer+"% - 6px);right:auto;color:"
               +(AREAS[b.area]||AREAS.K).c,
             onclick:(ev)=>{ ev.stopPropagation();
               saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)}); }},
@@ -1233,7 +1269,9 @@ function vDzis(){
         {id:uid(),s:"20:00",e:"21:00",area:"O",txt:"Szydełko",proj:"",done:false}]})},"Szydełko")),
     bl,
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
-      +"Siatka ma podziałkę co 15 minut. Kliknij w gotowy blok, gdy go zrobisz — wypełni się kolorem. "
+      +"Siatka ma podziałkę co 15 minut. Bloki, które się zazębiają, dzielą szerokość — "
+      +"możesz położyć konsultację na długim bloku gabinetu. "
+      +"Kliknij w gotowy blok, gdy go zrobisz — wypełni się kolorem. "
       +"Blok = 90–120 minut jednej rzeczy, najwyżej 2–3 dziennie."));
 
   /* prawa strona */
@@ -2440,7 +2478,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-115027";
+const VER = "20261005-115152";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
