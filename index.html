@@ -191,6 +191,8 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
   display:flex;align-items:center;line-height:1.2;font-size:11px;z-index:1;cursor:pointer}
+.cofnij:disabled{opacity:.35;cursor:default}
+.cofnij:disabled:hover{border-color:var(--line);color:var(--fg)}
 .blk.ciagnie{box-shadow:0 3px 10px rgba(0,0,0,.25);opacity:.92;z-index:3}
 .przenosnik{margin:0 4px 8px 28px;gap:4px}
 :root[data-skin="mac"] .przenosnik{margin:0 14px 9px 40px}
@@ -306,7 +308,8 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
   .cell{min-width:30px;height:30px}
   .tb{font-size:13px}
   #tabsbot button{padding:7px 5px;font-size:12px}
-  header.bar{padding:10px 14px;align-items:center}
+  header.bar{padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;align-items:center;
+    position:fixed;top:0;left:0;right:0;z-index:9}
   header.bar>.spacer{flex:0 0 100%;height:0;margin:0}
   #tabsbot{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--side);
     border-top:1px solid var(--line);padding:5px 6px calc(5px + env(safe-area-inset-bottom,0px));
@@ -2600,12 +2603,22 @@ function buildBar(){
       ustawienia:"Ustawienia"}[S.view]||"Planer"),
       el("span",{class:"spacer"}));
   }
-  if(S.db && COFKA.length){
+  if(S.db){
     const ost = COFKA[COFKA.length-1];
-    bar.append(el("button",{class:"btn icon",title:"Cofnij ostatnią zmianę · "+ost.opis,
-      onclick:cofnij},"↩"));
+    const b = el("button",{class:"btn icon cofnij",
+      title: ost ? ("Cofnij ostatnią zmianę · "+ost.opis) : "Nie ma czego cofać",
+      onclick:cofnij},"↩");
+    if(!ost) b.disabled = true;
+    bar.append(b);
   }
 }
+function dopasujPasek(){
+  const b=document.getElementById("bar"), s=document.querySelector(".scroll");
+  if(!b||!s) return;
+  if(window.innerWidth>720){ s.style.paddingTop=""; return; }
+  s.style.paddingTop = (Math.round(b.getBoundingClientRect().height) + 12) + "px";
+}
+window.addEventListener("resize", dopasujPasek);
 function grow(){
   document.querySelectorAll("textarea:not(.grow)").forEach(ta=>{
     ta.style.height="auto"; ta.style.height=(ta.scrollHeight+2)+"px";
@@ -2630,10 +2643,10 @@ function render(){
   if(S.canWrite===false) v.append(el("p",{class:"err"},"Tryb tylko do odczytu — zmiany nie zapiszą się."));
   const r=({dzis:vDzis,tydzien:vTydzien,miesiac:vMiesiac,trackery:vTrackery,
     cele:vCele,listy:vListy,legenda:vLegenda,ustawienia:vUstawienia}[S.view]||vDzis)();
-  if(r.W){ v.append(...r.W); requestAnimationFrame(grow); return; }
+  if(r.W){ v.append(...r.W); requestAnimationFrame(()=>{ grow(); dopasujPasek(); }); return; }
   v.append(el("div",{class:"cols"+(r.even?" even":"")},
     el("div",{class:"colbox"},...r.L), el("div",{class:"colbox"},...r.R)));
-  requestAnimationFrame(grow);
+  requestAnimationFrame(()=>{ grow(); dopasujPasek(); });
 }
 
 /* ---------- magazyn danych: prywatne repozytorium GitHub ---------- */
@@ -2666,7 +2679,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-120221";
+const VER = "20261005-120424";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
