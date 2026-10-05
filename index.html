@@ -705,7 +705,16 @@ function save(path, patch){
   },350);
   QUEUE.set(path+"#t", t);
 }
-const dayDoc  = d => ({date:d, type:"", must:"", tasks:[], blocks:[], journal:"", ...(S.day[d]||{})});
+const dayDoc  = d => ({date:d, type:"", must:"", tasks:[], blocks:[], journal:"",
+  liczniki:{}, ...(S.day[d]||{})});
+/* licznik czasu: {od: znacznik startu albo null, suma: sekundy} */
+const ileSekund = x => (x ? (x.suma||0) + (x.od ? Math.max(0, Math.floor((Date.now()-x.od)/1000)) : 0) : 0);
+const czasSlownie = s => {
+  const m = Math.round(s/60);
+  if(m < 60) return m+" min";
+  return Math.floor(m/60)+" godz "+(m%60 ? (m%60)+" min" : "");
+};
+let tykanie = null;
 const saveDay = (d,p)=>{ zapamietajCofke("days/"+d, S.day[d] ? dayDoc(d) : null);
   S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d]); render(); };
 const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, eksperyment:"", eksperymentWynik:"", ...(S.week[w]||{})});
@@ -1693,6 +1702,44 @@ function vDzis(){
     ...ink.map(x=>el("span",{class:"row",style:"gap:5px"},
       el("span",{class:"chip"},x.h), el("b",{style:"font-weight:600"},x.slowo)))));
 
+  /* --- liczniki czasu --- */
+  const liczniki = {...(D.liczniki||{})};
+  if(!Object.keys(liczniki).length) liczniki["Szydełko"] = {od:null, suma:0};
+  const secLicz = sec("Licznik");
+  const biegnie = Object.values(liczniki).some(x=>x && x.od);
+  Object.keys(liczniki).forEach(nazwa=>{
+    const x = liczniki[nazwa] || {od:null, suma:0};
+    const idzie = !!x.od;
+    const przelacz = ()=>{
+      const n = {...(D.liczniki||{})};
+      if(idzie){ n[nazwa] = {od:null, suma:ileSekund(x)}; }
+      else { Object.keys(n).forEach(k=>{ if(n[k] && n[k].od) n[k] = {od:null, suma:ileSekund(n[k])}; });
+             n[nazwa] = {od:Date.now(), suma:(x.suma||0)}; }
+      saveDay(d, {liczniki:n});
+    };
+    secLicz.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:8px"},
+      el("span",{style:"flex:1 1 auto;min-width:0"+(idzie?";font-weight:600":"")}, nazwa),
+      el("b",{style:"font-weight:600;font-variant-numeric:tabular-nums;flex:0 0 auto"},
+        czasSlownie(ileSekund(x))),
+      el("button",{class:"btn"+(idzie?" on":""),onclick:przelacz}, idzie ? "Stop" : "Start"),
+      el("button",{class:"ghost",title:"Usuń licznik",onclick:()=>{
+        if(!confirm("Usunąć licznik „"+nazwa+"” z tego dnia?")) return;
+        const n={...(D.liczniki||{})}; delete n[nazwa]; saveDay(d,{liczniki:n});
+      }},"✕")));
+  });
+  const nowyL = el("input",{type:"text",placeholder:"Nowa czynność do mierzenia",
+    list:"projekty",style:"width:auto;flex:1 1 150px;min-width:0"});
+  const dodajL = ()=>{ const v=duza(nowyL.value); if(!v) return;
+    saveDay(d,{liczniki:{...(D.liczniki||{}), [v]:{od:null, suma:0}}}); };
+  nowyL.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); dodajL(); } });
+  secLicz.append(el("div",{class:"row"}, nowyL,
+    el("button",{class:"btn",onclick:dodajL},"Dodaj"), listaProjektow()));
+  secLicz.append(el("p",{class:"note"},
+    "Do rzeczy robionych przy okazji, nie blokiem. Start zatrzymuje inne liczniki tego dnia. "
+    +"Czas liczy się też wtedy, gdy zamkniesz planer."));
+  clearInterval(tykanie); tykanie = null;
+  if(biegnie) tykanie = setInterval(()=>{ if(S.view==="dzis") render(); }, 30000);
+
   /* --- szybki wpis --- */
   const szPole=el("input",{type:"text",placeholder:"np. jutro 9:00-11:00 Gabinet #G"});
   const szPodg=el("p",{class:"note"});
@@ -1773,7 +1820,7 @@ function vDzis(){
   const mk=miniKalendarz(d);
   const prawa = showCal ? [mk,secMust,secTyp,secSzab,secTerm,secKotw,secCal]
                        : [mk,secMust,secTyp,secSzab,secTerm,secKotw];
-  return {L:[secSzyb,secTasks,secBloki,secDz], R:prawa};
+  return {L:[secSzyb,secTasks,secBloki,secLicz,secDz], R:prawa};
 }
 
 /* ---------- Tydzień ---------- */
@@ -2878,7 +2925,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-142542";
+const VER = "20261005-142832";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
