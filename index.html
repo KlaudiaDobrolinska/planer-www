@@ -619,6 +619,16 @@ function parsujWpis(wejscie){
     if(klucz) obszar = klucz;
     return " ";
   });
+  // litera obszaru na początku, jak w planerze papierowym: „G - …", „G: …", „G …"
+  if(!obszar){
+    const RYZYKOWNE = ["W","Z","O","I","A","U"];   // w polszczyźnie bywają samodzielnym słowem
+    s = s.replace(/^\s+([A-ZĄĆĘŁŃÓŚŹŻ])\s*([-–—:.])?\s+/, (m, lit, znak)=>{
+      if(!AREAS[lit]) return m;
+      if(!znak && RYZYKOWNE.includes(lit)) return m;   // „Z Julą…" to nie obszar
+      obszar = lit;
+      return " ";
+    });
+  }
   s = s.replace(/(^|\s)(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2})(?::(\d{2}))?(?=\s)/,
     (m, p, h1, m1, h2, m2)=>{ od = pad(+h1)+":"+m1; doo = pad(+h2)+":"+(m2||"00"); return " "; });
   if(!od) s = s.replace(/(^|\s)(\d{1,2})\s*[-–]\s*(\d{1,2})(?=\s)/,
@@ -638,7 +648,9 @@ function parsujWpis(wejscie){
     for(let i=0;i<8;i++){ if(((d.getDay()+6)%7)+1 === cel) break; d.setDate(d.getDate()+1); }
     data = key(d); return " "; });
 
-  return {data, od, doo, obszar, txt: duza(s.replace(/\s+/g," ").trim())};
+  const czysty = s.replace(/\s+/g," ").trim();
+  const czesci = czysty.split(";").map(x=>duza(x)).filter(Boolean);
+  return {data, od, doo, obszar, txt: czesci[0] || "", czesci};
 }
 function rodzajWpisu(r){ return r.doo ? "blok" : (r.od ? "wydarzenie" : "zadanie"); }
 
@@ -1265,21 +1277,24 @@ function vDzis(){
     if(!r.txt){ szPodg.textContent=
       "„Pranie ciemne” → zadanie · „12:30 Psychoterapia” → wydarzenie · "
       +"„jutro 9:00-11:00 Gabinet” → blok. Dzień: dziś / jutro / pon / 5.10 (kropka). "
-      +"Godzina z dwukropkiem. Obszar: #G."; return; }
+      +"Godzina z dwukropkiem. Obszar: litera na początku, np. G - … albo #G. "
+      +"Średnik rozdziela kilka zadań naraz."; return; }
     const kt=rodzajWpisu(r), dd=parse(r.data);
-    szPodg.textContent = {zadanie:"Zadanie", blok:"Blok", wydarzenie:"Wydarzenie w kalendarzu"}[kt]
+    const ile = (kt==="zadanie" && r.czesci.length>1) ? (" ×"+r.czesci.length) : "";
+    szPodg.textContent = {zadanie:"Zadanie", blok:"Blok", wydarzenie:"Wydarzenie w kalendarzu"}[kt] + ile
       + " · " + dd.getDate() + " " + MONTHS[dd.getMonth()]
       + (r.od ? " · " + r.od + (r.doo ? "–"+r.doo : "") : "")
       + (r.obszar ? " · " + (AREAS[r.obszar]||AREAS.Z).n : "")
-      + " · " + r.txt;
+      + " · " + r.czesci.join(" + ");
   };
   szPole.addEventListener("input",odswiezPodg);
   const szWyslij=async()=>{
     const r=parsujWpis(szPole.value); if(!r.txt) return;
     const kt=rodzajWpisu(r), ob=r.obszar||"Z";
     if(kt==="zadanie"){
-      if(r.data===d) saveDay(d,{tasks:[...D.tasks,{id:uid(),txt:r.txt,st:"todo",area:ob,minor:false}]});
-      else await dopiszZadanie(r.data,{id:uid(),txt:r.txt,st:"todo",area:ob,minor:false});
+      const nowe = r.czesci.map(x=>({id:uid(), txt:x, st:"todo", area:ob, minor:false}));
+      if(r.data===d) saveDay(d,{tasks:[...D.tasks, ...nowe]});
+      else for(const z of nowe) await dopiszZadanie(r.data, z);
     }else if(kt==="blok"){
       const nowy={id:uid(),s:r.od,e:r.doo,area:ob,txt:r.txt,done:false};
       if(r.data===d) saveDay(d,{blocks:[...D.blocks,nowy]});
@@ -2388,7 +2403,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-101754";
+const VER = "20261005-103748";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
