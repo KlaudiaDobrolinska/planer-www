@@ -1164,10 +1164,16 @@ function vDzis(){
 
   function taskRow(t){
     const r=el("div",{class:"task "+t.st});
-    r.append(el("button",{class:"mark",style:"color:"+(AREAS[t.area]||AREAS.K).c,
-      title:STNAME[t.st]+" — kliknij, by zmienić",
-      onclick:()=>{const c=cyklZnakow();
-        upd(t.id,{st:c[(c.indexOf(t.st)+1)%c.length]||c[0]})}}, STMARK[t.st]||"•"));
+    const znak = el("button",{class:"mark",style:"color:"+(AREAS[t.area]||AREAS.K).c,
+      title:(STNAME[t.st]||"zadanie")+" — kliknij, gdy zrobione; przytrzymaj, by wybrać inny znak",
+      onclick:()=>{
+        if(Date.now()-ostatnieDlugie < 600) return;
+        upd(t.id,{st: t.st==="done" ? "todo" : "done"});
+      }}, STMARK[t.st]||"•");
+    przytrzymanie(znak, ()=>{ S.znak=t.id; S.przenies=null; S.projekt=null; S.notatka=null; render(); });
+    // przytrzymanie na kratce nie może uruchamiać wyboru obszaru z całego wiersza
+    znak.addEventListener("pointerdown", ev=>ev.stopPropagation());
+    r.append(znak);
     const span=el("button",{class:"ttxt",title:"Kliknij, by edytować · przytrzymaj, by przenieść",onclick:()=>{
       if(Date.now()-ostatnieDlugie < 600) return;
       const inp=el("input",{type:"text",value:duza(t.txt)});
@@ -1189,7 +1195,16 @@ function vDzis(){
         t.note?"≡":"+≡"),
       el("button",{class:"ghost",title:"Wyżej",onclick:()=>move(t.id,-1)},"⌃"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{tasks:D.tasks.filter(x=>x.id!==t.id)})},"✕")));
-    przytrzymanie(r, ()=>{ S.przenies = t.id; S.projekt=null; S.notatka=null; render(); });
+    przytrzymanie(r, ()=>{ S.przenies = t.id; S.projekt=null; S.notatka=null; S.znak=null; render(); });
+    if(S.znak===t.id){
+      const wybor=el("div",{class:"row przenosnik"},
+        el("span",{class:"note"},"Znak:"),
+        ...ST.map(k=>el("button",{class:"btn icon"+(t.st===k?" on":""),
+          title:STNAME[k]||k,
+          onclick:()=>{ S.znak=null; upd(t.id,{st:k}); }}, STMARK[k]||"•")),
+        el("button",{class:"ghost",onclick:()=>{S.znak=null;render()}},"anuluj"));
+      return el("div",{class:"taskwrap"}, r, wybor);
+    }
     if(S.przenies===t.id){
       const wybor=el("div",{class:"row przenosnik"},
         el("span",{class:"note"},"Przenieś do:"),
@@ -2067,13 +2082,9 @@ function edytorZnakow(box){
       style:"width:46px;flex:0 0 46px;text-align:center"});
     const nm=el("input",{type:"text",value:STNAME[k]||"",
       style:"width:auto;flex:1 1 110px;min-width:0"});
-    const cy=el("input",{type:"checkbox"}); cy.checked=!!STCYC[k];
     mk.addEventListener("change",()=>{STMARK[k]=mk.value||"•"; cfgZapisz(); render();});
     nm.addEventListener("change",()=>{STNAME[k]=duza(nm.value); cfgZapisz(); render();});
-    cy.addEventListener("change",()=>{STCYC[k]=cy.checked?1:0; cfgZapisz(); render();});
     box.append(el("div",{class:"row"},mk,nm,
-      el("label",{class:"row",style:"gap:5px;flex:0 0 auto"},cy,
-        el("span",{class:"note"},"cykl")),
       el("button",{class:"ghost",title:"Usuń oznaczenie",onclick:()=>{
         if(ST.length<2) return;
         if(!confirm("Usunąć oznaczenie „"+(STNAME[k]||k)+"”? Zadania z nim pokażą kropkę.")) return;
@@ -2092,8 +2103,8 @@ function edytorZnakow(box){
       cfgZastosuj({areas:JSON.parse(JSON.stringify(AREAS))}); cfgZapisz(); render();
     }},"przywróć fabryczne")));
   box.append(el("p",{class:"note"},
-    "„W cyklu” znaczy, że klikanie kratki przy zadaniu przechodzi przez to oznaczenie. "
-    +"Kolejność na liście to kolejność klikania, czyli też priorytet."));
+    "Kliknięcie kratki przy zadaniu oznacza je jako zrobione i z powrotem. "
+    +"Inny znak wybierasz, przytrzymując kratkę — wtedy pokazuje się ta lista."));
 }
 function edytorObszarow(box){
   Object.keys(AREAS).forEach(k=>{
@@ -2716,7 +2727,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-122411";
+const VER = "20261005-124400";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
