@@ -498,7 +498,9 @@ function cfgZapisz(){
     home:HOME.map(h=>[...h])});
 }
 function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
-const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],["Su","Suplementy"],["Wo","Woda"],["Al","Nakładki"]];
+const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],
+  ["leki","Leki"],["lektyg","Lek tygodniowy"],["Su","Suplementy"],
+  ["Wo","Woda"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
 const SZABLONY = [];           // {nazwa, typ, tasks:[...], blocks:[...]}
@@ -509,8 +511,7 @@ const KOTWICE = [                       // zadania, które pojawiają się same
 ];
 const HOME = [["pranie","Pranie","Dom"],["zmyw","Zmywarka","Dom"],
   ["glowa","Mycie głowy","Pielęgnacja"],["pielr","Pielęgnacja rano","Pielęgnacja"],
-  ["pielw","Pielęgnacja wieczór","Pielęgnacja"],
-  ["leki","Leki","Leki"],["lektyg","Lek tygodniowy","Leki"]];
+  ["pielw","Pielęgnacja wieczór","Pielęgnacja"]];
 const SCALES = {
   F:{t:"fizyczne",  v:{5:"pełnia sił",4:"dobrze",3:"przeciętnie",2:"wyraźne zmęczenie",1:"bardzo źle"}},
   P:{t:"psychiczne",v:{5:"spokój, jasna głowa",4:"dobrze",3:"neutralnie",2:"przygnębienie, niepokój",1:"bardzo trudny dzień"}},
@@ -1734,7 +1735,7 @@ function vTydzien(){
         el("span",{class:"note"},"pusta"))),
     el("p",{class:"note"}, grupa==="Dom"
       ? "Pranie: cyfra w kratce to liczba wsadów."
-      : (grupa==="Leki" ? "Lek tygodniowy — poniedziałek." : "Kliknij raz: zrobione, drugi raz: wersja skrócona.")));
+      : "Kliknij raz: zrobione, drugi raz: wersja skrócona."));
   if(grupa === grupyDomu[grupyDomu.length-1]) edytorDomu(hw);
   return hw;
   });
@@ -2761,7 +2762,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-135443";
+const VER = "20261005-135921";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
