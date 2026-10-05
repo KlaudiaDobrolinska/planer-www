@@ -486,7 +486,7 @@ function cfgZastosuj(c){
   const sz = (c && c.szablony) ? c.szablony : FABR.SZABLONY;
   SZABLONY.length = 0; sz.forEach(x=>SZABLONY.push(JSON.parse(JSON.stringify(x))));
   const dm = (c && c.home && c.home.length) ? c.home : FABR.HOME;
-  HOME.length = 0; dm.forEach(x=>HOME.push([x[0], x[1]]));
+  HOME.length = 0; dm.forEach(x=>HOME.push([x[0], x[1], x[2] || "Dom"]));
 }
 function cfgZapisz(){
   save("cfg/ui", {areas:JSON.parse(JSON.stringify(AREAS)),
@@ -507,9 +507,10 @@ const KOTWICE = [                       // zadania, które pojawiają się same
   {dni:[1],             txt:"Lek tygodniowy",       area:"K"},
   {dni:[6],             txt:"Suplementy na tydzień",area:"K"}
 ];
-const HOME = [["pranie","Pranie"],["zmyw","Zmywarka"],["glowa","Mycie głowy"],
-  ["pielr","Pielęgnacja rano"],["pielw","Pielęgnacja wieczór"],["leki","Leki"],
-  ["lektyg","Lek tygodniowy"]];
+const HOME = [["pranie","Pranie","Dom"],["zmyw","Zmywarka","Dom"],
+  ["glowa","Mycie głowy","Pielęgnacja"],["pielr","Pielęgnacja rano","Pielęgnacja"],
+  ["pielw","Pielęgnacja wieczór","Pielęgnacja"],
+  ["leki","Leki","Leki"],["lektyg","Lek tygodniowy","Leki"]];
 const SCALES = {
   F:{t:"fizyczne",  v:{5:"pełnia sił",4:"dobrze",3:"przeciętnie",2:"wyraźne zmęczenie",1:"bardzo źle"}},
   P:{t:"psychiczne",v:{5:"spokój, jasna głowa",4:"dobrze",3:"neutralnie",2:"przygnębienie, niepokój",1:"bardzo trudny dzień"}},
@@ -1694,13 +1695,16 @@ function vTydzien(){
       el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums"},tasks.length?done+"/"+tasks.length:"")));
   });
 
-  const hw=sec("Dom i pielęgnacja");
+  const grupyDomu = [];
+  HOME.forEach(h=>{ const g=h[2]||"Dom"; if(!grupyDomu.includes(g)) grupyDomu.push(g); });
+  const sekcjeDomu = grupyDomu.map(grupa=>{
+  const hw=sec(grupa);
   const tb=el("table",{class:"tb dom"});
   const hr=el("tr",{},el("th",{class:"lft"},""));
   days.forEach(ds=>hr.append(el("th",{},DOW[dowIdx(ds)])));
   tb.append(el("thead",{},hr));
   const tbody=el("tbody");
-  HOME.forEach(([k,label])=>{
+  HOME.filter(h=>(h[2]||"Dom")===grupa).forEach(([k,label])=>{
     const tr=el("tr",{},el("td",{class:"lft"},duza(label)));
     days.forEach(ds=>{
       const cur=(W.home[ds]||{})[k];
@@ -1728,8 +1732,12 @@ function vTydzien(){
         el("span",{class:"note"},"wersja skrócona")),
       el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw",style:"pointer-events:none"}),
         el("span",{class:"note"},"pusta"))),
-    el("p",{class:"note"},"Pranie: cyfra w kratce to liczba wsadów. Lek tygodniowy — poniedziałek."));
-  edytorDomu(hw);
+    el("p",{class:"note"}, grupa==="Dom"
+      ? "Pranie: cyfra w kratce to liczba wsadów."
+      : (grupa==="Leki" ? "Lek tygodniowy — poniedziałek." : "Kliknij raz: zrobione, drugi raz: wersja skrócona.")));
+  if(grupa === grupyDomu[grupyDomu.length-1]) edytorDomu(hw);
+  return hw;
+  });
 
   const rv=sec("Przegląd tygodnia");
   const pw = podsumowanie(days);
@@ -1811,7 +1819,7 @@ function vTydzien(){
   pp.append(el("p",{class:"note"},
     "Dzień znika z listy, gdy oznaczysz go jako przepisany. Zmiana w dniówce go nie przywraca."));
 
-  return {L:[dl,hw,pp,rv], R:[miniKalendarz(S.date),t3,q]};
+  return {L:[dl,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -2197,9 +2205,12 @@ function edytorNawykow(box){
 function edytorDomu(box){
   const panel = el("div",{hidden:true,style:"display:flex;flex-direction:column;gap:8px"});
   HOME.forEach((h,i)=>{
-    const nm=el("input",{type:"text",value:h[1],style:"width:auto;flex:1 1 170px;min-width:0"});
+    const nm=el("input",{type:"text",value:h[1],style:"width:auto;flex:1 1 150px;min-width:0"});
+    const gr=el("input",{type:"text",value:h[2]||"Dom",list:"grupydomu",
+      style:"width:auto;flex:0 1 120px;min-width:0"});
     nm.addEventListener("change",()=>{HOME[i][1]=duza(nm.value); cfgZapisz(); render();});
-    panel.append(el("div",{class:"row"},nm,
+    gr.addEventListener("change",()=>{HOME[i][2]=duza(gr.value)||"Dom"; cfgZapisz(); render();});
+    panel.append(el("div",{class:"row"},nm,gr,
       el("button",{class:"ghost",title:"Wyżej",onclick:()=>{
         if(i===0) return;
         const a=HOME[i-1]; HOME[i-1]=HOME[i]; HOME[i]=a; cfgZapisz(); render();
@@ -2212,12 +2223,16 @@ function edytorDomu(box){
   });
   panel.append(el("div",{class:"row"},
     el("button",{class:"btn",onclick:()=>{
-      HOME.push(["d"+uid(),"Nowa pozycja"]); cfgZapisz(); render();
+      HOME.push(["d"+uid(),"Nowa pozycja","Dom"]); cfgZapisz(); render();
     }},"Dodaj pozycję"),
     el("button",{class:"ghost",onclick:()=>{
       if(!confirm("Przywrócić pozycje fabryczne?")) return;
       HOME.length=0; FABR.HOME.forEach(x=>HOME.push([...x])); cfgZapisz(); render();
     }},"przywróć fabryczne")));
+  const dl=el("datalist",{id:"grupydomu"});
+  [...new Set(HOME.map(h=>h[2]||"Dom"))].forEach(g=>dl.append(el("option",{value:g})));
+  panel.append(dl, el("p",{class:"note"},
+    "Druga kolumna to grupa — pozycje z tą samą nazwą trafiają do wspólnej tabeli."));
   const przycisk = el("button",{class:"ghost"},"▸ edytuj pozycje");
   przycisk.addEventListener("click",()=>{
     panel.hidden = !panel.hidden;
@@ -2746,7 +2761,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-134559";
+const VER = "20261005-135443";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
