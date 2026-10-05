@@ -1717,10 +1717,26 @@ function vDzis(){
              n[nazwa] = {od:Date.now(), suma:(x.suma||0)}; }
       saveDay(d, {liczniki:n});
     };
+    const czasEl = (S.licznikEdyt === nazwa)
+      ? (()=>{ const i=el("input",{type:"number",min:"0",step:"5",
+            value:String(Math.round(ileSekund(x)/60)),
+            style:"width:76px;flex:0 0 76px;text-align:right"});
+          const zapisz=()=>{
+            const m = Math.max(0, parseInt(i.value,10) || 0);
+            const n = {...(D.liczniki||{})};
+            n[nazwa] = {od: idzie ? Date.now() : null, suma: m*60};
+            S.licznikEdyt = null; saveDay(d,{liczniki:n});
+          };
+          i.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); zapisz(); } });
+          i.addEventListener("blur", zapisz);
+          setTimeout(()=>{ i.focus(); i.select(); },40);
+          return i; })()
+      : el("button",{class:"ghost",title:"Kliknij, by poprawić czas",
+          style:"font-weight:600;font-variant-numeric:tabular-nums;flex:0 0 auto;font-size:13px",
+          onclick:()=>{ S.licznikEdyt = nazwa; render(); }}, czasSlownie(ileSekund(x)));
     secLicz.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:8px"},
       el("span",{style:"flex:1 1 auto;min-width:0"+(idzie?";font-weight:600":"")}, nazwa),
-      el("b",{style:"font-weight:600;font-variant-numeric:tabular-nums;flex:0 0 auto"},
-        czasSlownie(ileSekund(x))),
+      czasEl,
       el("button",{class:"btn"+(idzie?" on":""),onclick:przelacz}, idzie ? "Stop" : "Start"),
       el("button",{class:"ghost",title:"Usuń licznik",onclick:()=>{
         if(!confirm("Usunąć licznik „"+nazwa+"” z tego dnia?")) return;
@@ -1736,7 +1752,8 @@ function vDzis(){
     el("button",{class:"btn",onclick:dodajL},"Dodaj"), listaProjektow()));
   secLicz.append(el("p",{class:"note"},
     "Do rzeczy robionych przy okazji, nie blokiem. Start zatrzymuje inne liczniki tego dnia. "
-    +"Czas liczy się też wtedy, gdy zamkniesz planer."));
+    +"Czas liczy się też przy zamkniętym planerze. Kliknij w czas, żeby go poprawić — "
+    +"wpisujesz minuty."));
   clearInterval(tykanie); tykanie = null;
   if(biegnie) tykanie = setInterval(()=>{ if(S.view==="dzis") render(); }, 30000);
 
@@ -2925,7 +2942,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-142832";
+const VER = "20261005-202731";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
