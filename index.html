@@ -708,7 +708,7 @@ function save(path, patch){
 const dayDoc  = d => ({date:d, type:"", must:"", tasks:[], blocks:[], journal:"", ...(S.day[d]||{})});
 const saveDay = (d,p)=>{ zapamietajCofke("days/"+d, S.day[d] ? dayDoc(d) : null);
   S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d]); render(); };
-const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, ...(S.week[w]||{})});
+const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, eksperyment:"", eksperymentWynik:"", ...(S.week[w]||{})});
 const saveWeek= (w,p)=>{ zapamietajCofke("weeks/"+w, S.week[w] ? weekDoc(w) : null);
   S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
@@ -820,6 +820,72 @@ function dodajKotwice(ds){
   kotwicaTrwa = ds;
   saveDay(ds, {tasks:[...D.tasks, ...nowe], kotwice:true});
   setTimeout(()=>{ kotwicaTrwa = null; }, 1500);
+}
+
+/* ---------- co działa: wnioski z własnych danych ---------- */
+const PORY = [["Rano","do 12:00",0,12],["Popołudnie","12:00–17:00",12,17],["Wieczór","po 17:00",17,24]];
+function coDziala(daty){
+  const pory = PORY.map(()=>({plan:0, zrob:0}));
+  const typy = {};
+  const dlugosci = [];
+  daty.forEach(ds=>{
+    const D = S.mdays[ds] || (ds===S.date ? S.day[ds] : null) || {};
+    const bl = (D.blocks||[]);
+    if(D.type){ const w = typy[D.type] = typy[D.type] || {plan:0, zrob:0};
+      w.plan += bl.length; w.zrob += bl.filter(b=>b.done).length; }
+    bl.forEach(b=>{
+      const h = +String(b.s).slice(0,2);
+      const i = PORY.findIndex(([,,od,doo])=>h>=od && h<doo);
+      if(i>=0){ pory[i].plan++; if(b.done) pory[i].zrob++; }
+      if(b.done){
+        const min = naMin(b.e) - naMin(b.s);
+        if(min>0 && min<=600) dlugosci.push(min);
+      }
+    });
+  });
+  dlugosci.sort((a,b)=>a-b);
+  const mediana = dlugosci.length ? dlugosci[Math.floor(dlugosci.length/2)] : null;
+  return {pory, typy, zrobionych:dlugosci.length, mediana};
+}
+function sekcjaCoDziala(daty, naglowek){
+  const w = coDziala(daty);
+  const s = sec(naglowek || "Co u Ciebie działa");
+  if(w.zrobionych < 5){
+    s.append(el("p",{class:"note"},
+      "Za mało danych na wnioski — domkniętych bloków: "+w.zrobionych+". "
+      +"Zaznaczaj bloki jako zrobione; po kilkunastu wzór zacznie być widoczny."));
+  }
+  PORY.forEach(([nazwa,kiedy],i)=>{
+    const p = w.pory[i];
+    const proc = p.plan ? Math.round(p.zrob/p.plan*100) : null;
+    s.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:8px"},
+      el("span",{class:"note",style:"flex:1 1 auto;min-width:0"},nazwa+" · "+kiedy),
+      el("b",{style:"font-weight:600;flex:0 0 auto"}, p.zrob+" z "+p.plan),
+      el("span",{class:"note",style:"flex:0 0 46px;text-align:right"},
+        proc===null ? "—" : (proc+"%"))));
+  });
+  if(w.mediana) s.append(el("p",{class:"note"},
+    "Typowy domknięty blok trwa "+w.mediana+" minut."));
+  const kluczeTypow = Object.keys(DAYTYPES).filter(k=>w.typy[k]);
+  if(kluczeTypow.length){
+    s.append(el("div",{class:"note",style:"margin-top:4px"},"Wykonanie według typu dnia"));
+    kluczeTypow.forEach(k=>{
+      const x = w.typy[k];
+      s.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:8px"},
+        el("span",{class:"note",style:"flex:1 1 auto;min-width:0"},nazwaTypu(k)),
+        el("b",{style:"font-weight:600;flex:0 0 auto"}, x.zrob+" z "+x.plan)));
+    });
+  }
+  if(w.zrobionych >= 5){
+    const naj = w.pory
+      .map((p,i)=>({i, proc: p.plan ? p.zrob/p.plan : 0, zrob:p.zrob}))
+      .filter(x=>x.zrob>0).sort((a,b)=>b.proc-a.proc)[0];
+    if(naj) s.append(el("p",{class:"note"},
+      "Najwięcej domykasz w porze: "+PORY[naj.i][0].toLowerCase()
+      +". To obserwacja z Twoich danych, nie zalecenie — jeśli się utrzyma przez kilka tygodni, "
+      +"warto właśnie tam stawiać blok twórczy."));
+  }
+  return s;
 }
 
 /* ---------- liczby do przeglądu ---------- */
@@ -1792,6 +1858,16 @@ function vTydzien(){
     rv.append(el("div",{},el("div",{class:"note"},(i+1)+". "+qn),ta));
   });
 
+  const eks=sec("Eksperyment tygodnia");
+  eks.append(el("p",{class:"note"},
+    "Jedna rzecz, którą w tym tygodniu sprawdzasz — nie plan, tylko próba."));
+  eks.append(el("label",{class:"fld"},"Co próbuję",
+    textRow(duza(W.eksperyment),"np. blok twórczy zawsze po odwiezieniu Julci",
+      v=>saveWeek(w,{eksperyment:duza(v)}))));
+  eks.append(el("label",{class:"fld"},"Jak wyszło",
+    textRow(duza(W.eksperymentWynik),"wpisujesz w niedzielę",
+      v=>saveWeek(w,{eksperymentWynik:duza(v)}))));
+
   const t3=sec("TOP 3 tygodnia");
   [0,1,2].forEach(i=>t3.append(el("div",{class:"row"},
     el("span",{style:"color:var(--ink-3);width:12px"},String(i+1)),
@@ -1856,7 +1932,7 @@ function vTydzien(){
   pp.append(el("p",{class:"note"},
     "Dzień znika z listy, gdy oznaczysz go jako przepisany. Zmiana w dniówce go nie przywraca."));
 
-  return {L:[dl,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),t3,q]};
+  return {L:[dl,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -2008,7 +2084,7 @@ function vTrackery(){
   c3.append(el("p",{class:"note"},
     "Policzone z dni tego miesiąca. „Nie dotyczy” nie przerywa serii."));
 
-  return {L:[c1,c3], R:[c2], even:true};
+  return {L:[c1,c3], R:[c2,sekcjaCoDziala(daty,"Co u Ciebie działa")], even:true};
 }
 
 /* ---------- Cele ---------- */
@@ -2802,7 +2878,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-142159";
+const VER = "20261005-142542";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
