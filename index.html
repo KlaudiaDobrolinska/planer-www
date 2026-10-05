@@ -440,14 +440,21 @@ const AREAS = {
   K:{n:"Klaudia",    c:"var(--z)", nr:"77"},
   O:{n:"odpoczynek", c:"var(--o)", nr:"57"}
 };
+/* Typ dnia odpowiada na jedno pytanie: ile dziś wchodzi mojego czasu.
+   Norma liczy bloki twórcze i naukowe — to one wypadają pierwsze. */
+const BLOKI_WLASNE = ["T","S"];
 const DAYTYPES = {
-  Z:"zjazd — zajęcia 8:00–18:30, po nich odpoczynek",
-  G:"gabinet — notatki zaraz po konsultacji",
-  W:"wolny — 3 bloki w oknie przedszkolnym + 1 wieczorem",
-  M:"mieszany — konsultacje i 1 blok twórczy",
-  N:"niska energia — pierwsza rzecz z listy albo nic",
-  R:"regeneracja — bez pracy, zaplanowane"
+  pelny:      {n:"Pełny",         o:"Dzień do mojej dyspozycji.",                         min:2, max:3},
+  praca:      {n:"Praca",         o:"Gabinet albo twórczość naukowa.",                    min:0, max:1},
+  nauka:      {n:"Nauka",         o:"Studia, zjazd, szkolenie.",                          min:1, max:2},
+  zajety:     {n:"Zajęty",        o:"Cudze sprawy: wizyty, dowożenie, wyjazd.",           min:0, max:0},
+  niska:      {n:"Niska energia", o:"Pierwsza rzecz z listy albo nic.",                   min:0, max:1},
+  odpoczynek: {n:"Odpoczynek",    o:"Świadomie wolne, bez wyrzutów.",                     min:0, max:0}
 };
+const nazwaTypu = k => (DAYTYPES[k] || {}).n || k;
+const normaTekst = k => { const d=DAYTYPES[k]; if(!d) return "";
+  return d.min===d.max ? (d.max===0 ? "bez bloków własnych" : (d.max+" blok"))
+                       : (d.min+"–"+d.max+" bloków"); };
 const ST = ["todo","part","done","canc","moved","later","event","note"];
 const STMARK = {todo:"•",part:"◩",done:"✓",canc:"×",moved:">",later:"<",event:"○",note:"–"};
 const STNAME = {todo:"zadanie",part:"zaczęte / minimum",done:"zrobione",canc:"anulowane",
@@ -822,7 +829,7 @@ function podsumowanie(daty){
     const bl = D.blocks||[], ta = D.tasks||[];
     blok += bl.length; blokD += bl.filter(b=>b.done).length;
     zad += ta.length; zrob += ta.filter(t=>t.st==="done").length;
-    if(D.type==="N") dniN++;
+    if(D.type==="niska") dniN++;
     if(D.type) dniZ++;
     const h = (S.health[ds.slice(0,7)]||{})[+ds.slice(8)] || {};
     ["F","P","E"].forEach(k=>{ if(h[k]) oceny[k].push(h[k]); });
@@ -1535,9 +1542,24 @@ function vDzis(){
 
   /* prawa strona */
   const types=el("div",{class:"row"});
-  Object.entries(DAYTYPES).forEach(([k,desc])=>types.append(el("button",{class:"btn"+(D.type===k?" on":""),
-    title:desc,onclick:()=>saveDay(d,{type:D.type===k?"":k})},k)));
-  const secTyp=sec("Typ dnia",types,el("p",{class:"note"},D.type?DAYTYPES[D.type]:"Wybierz, jak wygląda ten dzień."));
+  Object.entries(DAYTYPES).forEach(([k,v])=>types.append(el("button",{class:"btn"+(D.type===k?" on":""),
+    title:v.o+" Norma: "+normaTekst(k)+".",
+    onclick:()=>saveDay(d,{type:D.type===k?"":k})}, v.n)));
+  const secTyp=sec("Typ dnia",types);
+  if(D.type && DAYTYPES[D.type]){
+    const def=DAYTYPES[D.type];
+    const wlasne=(D.blocks||[]).filter(b=>BLOKI_WLASNE.includes(b.area)).length;
+    secTyp.append(el("p",{class:"note"},def.o+" Norma: "+normaTekst(D.type)+" twórczych i naukowych."));
+    secTyp.append(el("div",{class:"row"},
+      el("span",{class:"note"},"Zaplanowane: "),
+      el("b",{style:"font-weight:600"},String(wlasne))));
+    if(wlasne > def.max) secTyp.append(el("p",{class:"err"},
+      "Masz "+wlasne+" bloków przy dniu typu "+def.n+". Norma to "+normaTekst(D.type)
+      +" — zobacz, co da się przenieść."));
+  }else{
+    secTyp.append(el("p",{class:"note"},"Wybierz, ile dziś wchodzi Twojego czasu. "
+      +"Typ nie opisuje, co robisz — od tego są obszary i kalendarz."));
+  }
 
   const secSzab=sec("Szablony dnia");
   if(!SZABLONY.length) secSzab.append(el("p",{class:"note"},
@@ -1751,10 +1773,17 @@ function vTydzien(){
     liczbyWiersz("Bloki zaplanowane", pw.blok),
     liczbyWiersz("Bloki zrobione", pw.blokD),
     liczbyWiersz("Zadania zrobione", pw.zrob + " z " + pw.zad),
-    liczbyWiersz("Dni niskiej energii (N)", pw.dniN),
     liczbyWiersz("Średnio fizycznie / psychicznie / efektywność",
       pw.F + " · " + pw.P + " · " + pw.E),
     el("p",{class:"note"},"Liczby są po to, żeby odróżnić gorszy tydzień od tendencji — nie do oceniania."));
+  const typyTyg = {};
+  days.forEach(ds=>{ const D2=S.mdays[ds] || (ds===S.date ? S.day[ds] : null) || {};
+    if(D2.type) typyTyg[D2.type] = (typyTyg[D2.type]||0)+1; });
+  if(Object.keys(typyTyg).length){
+    rv.append(el("div",{class:"note",style:"margin-top:4px"},"Jakie to były dni"));
+    Object.keys(DAYTYPES).forEach(k=>{ if(typyTyg[k])
+      rv.append(liczbyWiersz(nazwaTypu(k), typyTyg[k])); });
+  }
   REVIEW.forEach((qn,i)=>{
     const ta=el("textarea",{rows:2,placeholder:qn}); ta.value=W.review[i]||"";
     ta.addEventListener("change",()=>saveWeek(w,{review:{...W.review,[i]:duza(ta.value)}}));
@@ -1955,7 +1984,7 @@ function vTrackery(){
     liczbyWiersz("Bloki zrobione", pm.blokD + (pm.blok ? "  (" + Math.round(pm.blokD/pm.blok*100) + "%)" : "")),
     liczbyWiersz("Zadania zrobione", pm.zrob + " z " + pm.zad),
     liczbyWiersz("Dni z oznaczonym typem", pm.dniZ),
-    liczbyWiersz("Dni niskiej energii (N)", pm.dniN),
+    liczbyWiersz("Dni niskiej energii", pm.dniN),
     liczbyWiersz("Średnio fizycznie", pm.F),
     liczbyWiersz("Średnio psychicznie", pm.P),
     liczbyWiersz("Średnio efektywność", pm.E));
@@ -2090,7 +2119,11 @@ function vLegenda(){
 
   const c3=sec("Typy dni");
   Object.entries(DAYTYPES).forEach(([k,v])=>c3.append(el("div",{class:"row",style:"align-items:flex-start"},
-    el("b",{style:"width:16px;font-weight:600"},k),el("span",{class:"note",style:"flex:1"},v))));
+    el("b",{style:"width:104px;flex:0 0 104px;font-weight:600"},v.n),
+    el("span",{class:"note",style:"flex:1;min-width:0"},v.o+" Norma: "+normaTekst(k)+"."))));
+  c3.append(el("p",{class:"note"},
+    "Norma liczy bloki w obszarach twórczość i studia — to one wypadają pierwsze, "
+    +"gdy dzień się zapcha."));
 
   const c4=sec("Skale");
   Object.entries(SCALES).forEach(([k,sc])=>{
@@ -2767,7 +2800,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-140936";
+const VER = "20261005-142032";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
