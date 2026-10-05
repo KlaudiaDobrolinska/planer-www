@@ -206,6 +206,10 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .przep{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   font-size:12px;line-height:1.55;background:var(--paper-2);border:1px solid var(--line-2);
   border-radius:7px;padding:8px 10px;margin:0;overflow-x:auto}
+.grupa{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--fg-3);padding:10px 2px 3px;
+  border-bottom:1px solid var(--line-2);margin-bottom:2px}
+:root[data-skin="mac"] .sec>.tasks .grupa,:root[data-skin="mac"] .grupa{padding-left:14px;padding-right:14px}
 .kroklicz{font-size:10px;color:#fff;background:var(--ink);border-radius:9px;padding:1px 6px;
   letter-spacing:0;text-transform:none;flex:0 0 auto}
 .tin{width:78px;flex:0 0 auto}
@@ -561,6 +565,10 @@ const THEME = {
     else document.documentElement.dataset.theme = v; }
 };
 THEME.set(THEME.get());
+const GRUPY = {
+  get(){ try{ return localStorage.getItem("planer.grupy") !== "0"; }catch(e){ return true; } },
+  set(v){ try{ localStorage.setItem("planer.grupy", v ? "1" : "0"); }catch(e){} }
+};
 const el = (t,p={},...k)=>{const e=document.createElement(t);
   for(const[a,v] of Object.entries(p)){
     if(a==="class")e.className=v; else if(a==="html")e.innerHTML=v;
@@ -1033,11 +1041,35 @@ function vDzis(){
     if(S.notatka===t.id) setTimeout(()=>ta.focus(),40);
     return paczka;
   }
-  const list=el("div",{class:"tasks"});
-  if(!D.tasks.length) list.append(el("p",{class:"note"},
-    "Pusto. Najważniejsze zadanie wpisz pierwsze — kolejność jest priorytetem."));
-  major.forEach(t=>list.append(taskRow(t)));
-  if(minor.length){ list.append(el("div",{class:"divider"})); minor.forEach(t=>list.append(taskRow(t))); }
+  const list=el("div",{});
+  const wypisz=(poz,box)=>{
+    poz.filter(x=>!x.minor).forEach(x=>box.append(taskRow(x)));
+    const m=poz.filter(x=>x.minor);
+    if(m.length){ box.append(el("div",{class:"divider"})); m.forEach(x=>box.append(taskRow(x))); }
+  };
+  if(!D.tasks.length){
+    list.append(el("p",{class:"note"},
+      "Pusto. Najważniejsze zadanie wpisz pierwsze — kolejność jest priorytetem."));
+  }else if(!GRUPY.get()){
+    const box=el("div",{class:"tasks"}); wypisz(D.tasks,box); list.append(box);
+  }else{
+    const grupy=[];
+    const wyd=D.tasks.filter(x=>x.st==="event");
+    if(wyd.length) grupy.push(["Wizyty i spotkania", wyd, null]);
+    Object.keys(AREAS).forEach(k=>{
+      const g=D.tasks.filter(x=>x.st!=="event" && (x.area||"Z")===k);
+      if(g.length) grupy.push([duza((AREAS[k]||{}).n||k), g, k]);
+    });
+    const reszta=D.tasks.filter(x=>x.st!=="event" && !AREAS[x.area||"Z"]);
+    if(reszta.length) grupy.push(["Pozostałe", reszta, null]);
+    grupy.forEach(([tytul,poz,k])=>{
+      list.append(el("div",{class:"grupa"},
+        k?areaDot(k):el("span",{class:"dot",style:"background:var(--fg-3)"}),
+        el("span",{style:"flex:1 1 auto;min-width:0"},tytul),
+        el("span",{class:"note"},String(poz.length))));
+      const box=el("div",{class:"tasks"}); wypisz(poz,box); list.append(box);
+    });
+  }
 
   const inp=el("input",{type:"text",placeholder:"Nowe zadanie…",id:"nowezadanie"});
   let na="Z";
@@ -1062,9 +1094,11 @@ function vDzis(){
   };
   const secTasks=sec("Zadania",list,el("div",{class:"row",style:"margin-top:6px"},inp),
     el("div",{class:"row"},ab,el("span",{class:"spacer"}),el("button",{class:"btn",onclick:addT},"Dodaj")),
-    otwarte.length ? el("div",{class:"row"},
-      el("button",{class:"ghost",onclick:przenies},
-        "przenieś niezrobione na jutro (" + otwarte.length + ")")) : null);
+    el("div",{class:"row"},
+      el("button",{class:"ghost",onclick:()=>{GRUPY.set(!GRUPY.get()); render();}},
+        GRUPY.get() ? "pokaż jedną listą" : "podziel na sekcje"),
+      otwarte.length ? el("button",{class:"ghost",onclick:przenies},
+        "przenieś niezrobione na jutro (" + otwarte.length + ")") : null));
 
   /* oś godzin — wiersz na pół godziny, kliknięcie zakłada blok */
   const H0=0, H1=23, KW=11;            // wiersz na kwadrans
@@ -2354,7 +2388,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-092516";
+const VER = "20261005-101754";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
