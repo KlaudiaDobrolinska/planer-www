@@ -499,7 +499,6 @@ function cfgZapisz(){
 }
 function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
 const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],
-  ["leki","Leki"],["lektyg","Lek tygodniowy"],["Su","Suplementy"],
   ["Wo","Woda"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
@@ -509,9 +508,17 @@ const KOTWICE = [                       // zadania, które pojawiają się same
   {dni:[1],             txt:"Lek tygodniowy",       area:"K"},
   {dni:[6],             txt:"Suplementy na tydzień",area:"K"}
 ];
-const HOME = [["pranie","Pranie","Dom"],["zmyw","Zmywarka","Dom"],
-  ["glowa","Mycie głowy","Pielęgnacja"],["pielr","Pielęgnacja rano","Pielęgnacja"],
-  ["pielw","Pielęgnacja wieczór","Pielęgnacja"]];
+const HOME = [
+  ["prk","Pranie kolorowe","Dom"], ["prc","Pranie czarne","Dom"],
+  ["prb","Pranie białe","Dom"],    ["zmyw","Zmywarka","Dom"],
+  ["odk","Odkurzanie","Dom"],      ["kurz","Kurze","Dom"],
+  ["glowa","Mycie głowy","Pielęgnacja"], ["pielr","Poranna rutyna","Pielęgnacja"],
+  ["pielw","Wieczorna rutyna","Pielęgnacja"],
+  ["lekm","Lek raz w tygodniu — M","Leki i suplementy"],
+  ["lekcal","Lek raz w tygodniu — Calfos","Leki i suplementy"],
+  ["spiro","Spironol","Leki i suplementy"], ["seron","Seronil","Leki i suplementy"],
+  ["surano","Rano","Leki i suplementy"],    ["supol","Południe","Leki i suplementy"],
+  ["supop","Popołudnie","Leki i suplementy"],["suwiecz","Wieczór","Leki i suplementy"]];
 const SCALES = {
   F:{t:"fizyczne",  v:{5:"pełnia sił",4:"dobrze",3:"przeciętnie",2:"wyraźne zmęczenie",1:"bardzo źle"}},
   P:{t:"psychiczne",v:{5:"spokój, jasna głowa",4:"dobrze",3:"neutralnie",2:"przygnębienie, niepokój",1:"bardzo trudny dzień"}},
@@ -1709,18 +1716,17 @@ function vTydzien(){
     const tr=el("tr",{},el("td",{class:"lft"},duza(label)));
     days.forEach(ds=>{
       const cur=(W.home[ds]||{})[k];
-      const klasa = "cell kw" + (cur==null ? "" : (k==="pranie" ? " s1" : " s"+cur));
+      const klasa = "cell kw" + (cur==null ? "" : " s"+cur);
       const opis = cur==null ? "nic nie zapisano"
-        : (k==="pranie" ? (cur+" wsad"+(cur===1?"":(cur<5?"y":"ów")))
-                        : (cur===1?"zrobione":"wersja skrócona"));
+                 : (cur===1 ? "zrobione" : "wersja skrócona");
       tr.append(el("td",{},el("button",{class:klasa,
         title:label+" · "+DOW[dowIdx(ds)]+" — "+opis,
         onclick:()=>{
-        const nx = k==="pranie" ? (cur==null?1:(cur>=3?null:cur+1)) : (cur===1?2:(cur===2?null:1));
+        const nx = (cur===1?2:(cur===2?null:1));
         const h={...W.home,[ds]:{...(W.home[ds]||{})}};
         if(nx==null) delete h[ds][k]; else h[ds][k]=nx;
         saveWeek(w,{home:h});
-      }}, k==="pranie" && cur ? String(cur) : "")));
+      }})));
     });
     tbody.append(tr);
   });
@@ -1733,9 +1739,7 @@ function vTydzien(){
         el("span",{class:"note"},"wersja skrócona")),
       el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw",style:"pointer-events:none"}),
         el("span",{class:"note"},"pusta"))),
-    el("p",{class:"note"}, grupa==="Dom"
-      ? "Pranie: cyfra w kratce to liczba wsadów."
-      : "Kliknij raz: zrobione, drugi raz: wersja skrócona."));
+    el("p",{class:"note"},"Kliknij raz: zrobione, drugi raz: wersja skrócona."));
   if(grupa === grupyDomu[grupyDomu.length-1]) edytorDomu(hw);
   return hw;
   });
@@ -2762,7 +2766,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-135921";
+const VER = "20261005-140610";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
