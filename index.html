@@ -192,6 +192,8 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
   display:flex;align-items:center;line-height:1.2;font-size:11px;z-index:1;cursor:pointer}
 .blk.ciagnie{box-shadow:0 3px 10px rgba(0,0,0,.25);opacity:.92;z-index:3}
+.przenosnik{margin:0 4px 8px 28px;gap:4px}
+:root[data-skin="mac"] .przenosnik{margin:0 14px 9px 40px}
 .blokedyt{margin:8px 0;border-color:var(--pink)}
 .blk.waski{font-size:10px;padding:0 4px;background:color-mix(in srgb,var(--paper) 92%,transparent)}
 .blk.waski.done{background:color-mix(in srgb,currentColor 24%,transparent)}
@@ -587,8 +589,64 @@ const sec = (title,...kids) => el("div",{class:"sec"}, title?el("h3",{},title):n
 
 /* ---------- zapis ---------- */
 const QUEUE = new Map();
+/* ---------- cofanie ostatnich zmian ---------- */
+const COFKA = [];
+let cofkaWToku = false;
+function stanDo(path){
+  const [col,id] = path.split("/");
+  if(col==="days")   return S.day[id] || (S.mdays||{})[id] || null;
+  if(col==="weeks")  return (S.week||{})[id] || null;
+  if(col==="habits") return (S.habits||{})[id] || null;
+  if(col==="health") return (S.health||{})[id] || null;
+  if(col==="goals")  return (S.goals||[]).find(x=>x.id===id) || null;
+  if(col==="lists")  return (S.lists||[]).find(x=>x.id===id) || null;
+  return null;
+}
+function opisSciezki(path){
+  const [col,id] = path.split("/");
+  if(col==="days"){ const dt=parse(id); return dt.getDate()+" "+MONTHS[dt.getMonth()]; }
+  if(col==="weeks")  return "tydzień "+String(id).split("-W")[1];
+  if(col==="habits") return "nawyki";
+  if(col==="health") return "samopoczucie";
+  if(col==="goals")  return "cel";
+  if(col==="lists")  return "lista";
+  return col;
+}
+function zapamietajCofke(path){
+  if(cofkaWToku || path.startsWith("cfg/")) return;
+  const ost = COFKA[COFKA.length-1];
+  if(ost && ost.path===path && Date.now()-ost.kiedy < 2500){ ost.kiedy = Date.now(); return; }
+  const st = stanDo(path);
+  COFKA.push({path, opis:opisSciezki(path), kiedy:Date.now(),
+    stan: st ? JSON.parse(JSON.stringify(st)) : null});
+  if(COFKA.length > 25) COFKA.shift();
+}
+function cofnij(){
+  const w = COFKA.pop();
+  if(!w || !S.db) return;
+  cofkaWToku = true;
+  const [col,id] = w.path.split("/");
+  if(w.stan === null){
+    if(col==="days")   delete S.day[id];
+    if(col==="weeks")  delete S.week[id];
+    if(col==="habits") delete S.habits[id];
+    if(col==="health") delete S.health[id];
+    try{ S.db.doc(w.path).delete(); }catch(e){}
+  }else{
+    if(col==="days")   S.day[id]    = w.stan;
+    if(col==="weeks")  S.week[id]   = w.stan;
+    if(col==="habits") S.habits[id] = w.stan;
+    if(col==="health") S.health[id] = w.stan;
+    save(w.path, w.stan);
+  }
+  cofkaWToku = false;
+  S.blokEdyt = null;
+  render();
+}
+
 function save(path, patch){
   if(!S.db) return;
+  zapamietajCofke(path);
   const prev = QUEUE.get(path) || {};
   QUEUE.set(path, {...prev, ...patch});
   clearTimeout(QUEUE.get(path+"#t"));
@@ -1016,6 +1074,22 @@ const CALERR = {
   offline:"Brak połączenia z Kalendarzem Google."
 };
 
+/* ---------- przytrzymanie palcem ---------- */
+let ostatnieDlugie = 0;
+function przytrzymanie(elem, fn, ms){
+  let licznik=null, y0=0;
+  const stop=()=>{ if(licznik){ clearTimeout(licznik); licznik=null; } };
+  elem.addEventListener("pointerdown",(ev)=>{
+    y0=ev.clientY;
+    licznik=setTimeout(()=>{ licznik=null; ostatnieDlugie=Date.now();
+      if(navigator.vibrate) navigator.vibrate(8); fn(); }, ms||420);
+  });
+  elem.addEventListener("pointermove",(ev)=>{ if(Math.abs(ev.clientY-y0)>6) stop(); });
+  elem.addEventListener("pointerup",stop);
+  elem.addEventListener("pointercancel",stop);
+  elem.addEventListener("pointerleave",stop);
+}
+
 /* ---------- elementy wspólne ---------- */
 const areaDot = a => el("span",{class:"dot",style:"background:"+(AREAS[a]||AREAS.K).c});
 function textRow(val,ph,on){
@@ -1061,7 +1135,8 @@ function vDzis(){
       title:STNAME[t.st]+" — kliknij, by zmienić",
       onclick:()=>{const c=cyklZnakow();
         upd(t.id,{st:c[(c.indexOf(t.st)+1)%c.length]||c[0]})}}, STMARK[t.st]||"•"));
-    const span=el("button",{class:"ttxt",title:"Kliknij, by edytować",onclick:()=>{
+    const span=el("button",{class:"ttxt",title:"Kliknij, by edytować · przytrzymaj, by przenieść",onclick:()=>{
+      if(Date.now()-ostatnieDlugie < 600) return;
       const inp=el("input",{type:"text",value:duza(t.txt)});
       inp.addEventListener("blur",()=>upd(t.id,{txt:duza(inp.value)||t.txt}));
       inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();inp.blur()}});
@@ -1080,6 +1155,17 @@ function vDzis(){
         t.note?"≡":"+≡"),
       el("button",{class:"ghost",title:"Wyżej",onclick:()=>move(t.id,-1)},"⌃"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{tasks:D.tasks.filter(x=>x.id!==t.id)})},"✕")));
+    przytrzymanie(r, ()=>{ S.przenies = t.id; S.projekt=null; S.notatka=null; render(); });
+    if(S.przenies===t.id){
+      const wybor=el("div",{class:"row przenosnik"},
+        el("span",{class:"note"},"Przenieś do:"),
+        ...Object.entries(AREAS).map(([k,v])=>el("button",{
+          class:"btn icon"+(t.area===k?" on":""), title:v.n,
+          style:t.area===k?"":("color:"+v.c),
+          onclick:()=>{ S.przenies=null; upd(t.id,{area:k}); }},k)),
+        el("button",{class:"ghost",onclick:()=>{S.przenies=null;render()}},"anuluj"));
+      return el("div",{class:"taskwrap"}, r, wybor);
+    }
     if(S.projekt===t.id){
       const pr=el("input",{type:"text",class:"tnote",list:"projekty",
         placeholder:"Projekt — np. Mollette",value:t.proj||""});
@@ -2511,7 +2597,13 @@ function buildBar(){
       B("‹",()=>shift(-1),"Poprzedni miesiąc"),B("›",()=>shift(1),"Następny miesiąc"));
   }else{
     bar.append(el("h2",{},{cele:"Cele",listy:"Listy",legenda:"Legenda",
-      ustawienia:"Ustawienia"}[S.view]||"Planer"));
+      ustawienia:"Ustawienia"}[S.view]||"Planer"),
+      el("span",{class:"spacer"}));
+  }
+  if(S.db && COFKA.length){
+    const ost = COFKA[COFKA.length-1];
+    bar.append(el("button",{class:"btn icon",title:"Cofnij ostatnią zmianę · "+ost.opis,
+      onclick:cofnij},"↩"));
   }
 }
 function grow(){
@@ -2574,7 +2666,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-115735";
+const VER = "20261005-120221";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
