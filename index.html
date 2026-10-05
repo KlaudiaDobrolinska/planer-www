@@ -183,6 +183,9 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .hcell:hover{background:var(--pink-soft)}
 .hr.pol .hcell,.hr.pol .hlab{border-top-style:dotted}
 .hr.cwierc .hcell,.hr.cwierc .hlab{border-top-color:transparent}
+.pasek{border:1px dashed var(--line);background:var(--paper-2);color:var(--fg-3);
+  font-size:11px;padding:6px 8px;border-radius:7px;margin:2px 0;text-align:center;width:100%}
+.pasek:hover{border-color:var(--pink);color:var(--pink-2)}
 .hr:first-child .hlab,.hr:first-child .hcell{border-top:0}
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
@@ -1059,7 +1062,24 @@ function vDzis(){
     saveDay(d,{blocks:[...D.blocks,{id:uid(), s:pad(hh)+":"+pad(mm),
       e:pad(kon.getHours())+":"+pad(kon.getMinutes()), area:"T", txt:"", done:false}]});
   };
-  for(let h=H0;h<=H1;h++){
+  /* puste godziny nocne zwijamy, ale nigdy nie chowamy bloku */
+  let hOd=H0, hDo=H1;
+  if(!S.osPelna){
+    let od=6, doo=22;
+    D.blocks.forEach(b=>{
+      const s=+b.s.slice(0,2);
+      const e=+b.e.slice(0,2)+((+b.e.slice(3))>0?1:0);
+      if(s<od) od=s;
+      if(e>doo) doo=e;
+    });
+    hOd=Math.max(H0,Math.min(6,od));
+    hDo=Math.min(H1,Math.max(22,doo));
+  }
+  const pasek=(a,b,gdzie)=>el("button",{class:"pasek",
+    onclick:()=>{ S.osPelna=true; render(); }},
+    pad(a)+":00–"+pad(b)+":45 · pusto, kliknij by rozwinąć");
+
+  for(let h=hOd;h<=hDo;h++){
     for(let q=0; q<4; q++){
       const mm=q*15, pocz=h+q*0.25;
       const cell=el("div",{class:"hcell",
@@ -1103,7 +1123,14 @@ function vDzis(){
         b.done?"✓":"○"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{blocks:D.blocks.filter(x=>x.id!==b.id)})},"✕")));
   });
-  const secBloki=sec("Bloki",axis,
+  const osPelnaBox=el("div",{style:"display:flex;flex-direction:column"});
+  if(hOd>H0) osPelnaBox.append(pasek(H0,hOd-1,"gora"));
+  osPelnaBox.append(axis);
+  if(hDo<H1) osPelnaBox.append(pasek(hDo+1,H1,"dol"));
+  if(S.osPelna) osPelnaBox.append(el("div",{class:"row"},
+    el("button",{class:"ghost",onclick:()=>{S.osPelna=false;render()}},"zwiń puste godziny")));
+
+  const secBloki=sec("Bloki",osPelnaBox,
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
         {id:uid(),s:"09:00",e:"10:30",area:"T",txt:"",done:false}]})},"Dodaj blok"),
@@ -2311,7 +2338,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-091720";
+const VER = "20261005-092214";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
