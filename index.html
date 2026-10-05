@@ -453,8 +453,10 @@ const DAYTYPES = {
 };
 const nazwaTypu = k => (DAYTYPES[k] || {}).n || k;
 const normaTekst = k => { const d=DAYTYPES[k]; if(!d) return "";
-  return d.min===d.max ? (d.max===0 ? "bez bloków własnych" : (d.max+" blok"))
-                       : (d.min+"–"+d.max+" bloków"); };
+  if(d.min===0 && d.max===0) return "bez bloków własnych";
+  if(d.min===0 && d.max===1) return "najwyżej 1 blok";
+  if(d.min===d.max) return d.max+" blok"+(d.max>=5?"ów":(d.max>1?"i":""));
+  return d.min+"–"+d.max+" blok"+(d.max>=5?"ów":"i"); };
 const ST = ["todo","part","done","canc","moved","later","event","note"];
 const STMARK = {todo:"•",part:"◩",done:"✓",canc:"×",moved:">",later:"<",event:"○",note:"–"};
 const STNAME = {todo:"zadanie",part:"zaczęte / minimum",done:"zrobione",canc:"anulowane",
@@ -1549,7 +1551,7 @@ function vDzis(){
   if(D.type && DAYTYPES[D.type]){
     const def=DAYTYPES[D.type];
     const wlasne=(D.blocks||[]).filter(b=>BLOKI_WLASNE.includes(b.area)).length;
-    secTyp.append(el("p",{class:"note"},def.o+" Norma: "+normaTekst(D.type)+" twórczych i naukowych."));
+    secTyp.append(el("p",{class:"note"},def.o+" Norma: "+normaTekst(D.type)+" twórczych lub naukowych."));
     secTyp.append(el("div",{class:"row"},
       el("span",{class:"note"},"Zaplanowane: "),
       el("b",{style:"font-weight:600"},String(wlasne))));
@@ -2800,7 +2802,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-142032";
+const VER = "20261005-142159";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
