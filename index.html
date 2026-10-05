@@ -498,8 +498,8 @@ function cfgZapisz(){
     home:HOME.map(h=>[...h])});
 }
 function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
-const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],
-  ["Wo","Woda"],["Al","Nakładki"]];
+const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["In","Inktober"],
+  ["Wc","Wcierka"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
 const SZABLONY = [];           // {nazwa, typ, tasks:[...], blocks:[...]}
@@ -514,11 +514,12 @@ const HOME = [
   ["odk","Odkurzanie","Dom"],      ["kurz","Kurze","Dom"],
   ["glowa","Mycie głowy","Pielęgnacja"], ["pielr","Poranna rutyna","Pielęgnacja"],
   ["pielw","Wieczorna rutyna","Pielęgnacja"],
-  ["lekm","Lek raz w tygodniu — M","Leki i suplementy"],
-  ["lekcal","Lek raz w tygodniu — Calfos","Leki i suplementy"],
-  ["spiro","Spironol","Leki i suplementy"], ["seron","Seronil","Leki i suplementy"],
-  ["surano","Rano","Leki i suplementy"],    ["supol","Południe","Leki i suplementy"],
-  ["supop","Popołudnie","Leki i suplementy"],["suwiecz","Wieczór","Leki i suplementy"]];
+  ["woda","Woda","Zdrowie"],
+  ["lekm","Lek raz w tygodniu — M","Zdrowie"],
+  ["lekcal","Lek raz w tygodniu — Calfos","Zdrowie"],
+  ["spiro","Spironol","Zdrowie"],  ["seron","Seronil","Zdrowie"],
+  ["surano","Rano","Zdrowie"],     ["supol","Południe","Zdrowie"],
+  ["supop","Popołudnie","Zdrowie"],["suwiecz","Wieczór","Zdrowie"]];
 const SCALES = {
   F:{t:"fizyczne",  v:{5:"pełnia sił",4:"dobrze",3:"przeciętnie",2:"wyraźne zmęczenie",1:"bardzo źle"}},
   P:{t:"psychiczne",v:{5:"spokój, jasna głowa",4:"dobrze",3:"neutralnie",2:"przygnębienie, niepokój",1:"bardzo trudny dzień"}},
@@ -2766,7 +2767,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-140610";
+const VER = "20261005-140936";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
