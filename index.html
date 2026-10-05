@@ -31,6 +31,7 @@ img{max-width:100%}
   --ink:#4a6a5b; --dziennik:#6b5a6e;
   /* Staedtler Triplus — odczytane z wzornika Klaudii */
   --s:#81559c; --g:#5c94b7; --t:#c53501; --z:#44251b; --o:#5a6016; --r:#9f2b37;
+  --d:#fa970b; --j:#006c59;        /* 16 Golden Ochre, 38 Sea Green */
   --nawyk:#985e7d;                 /* 26 Antique Pink */
   --sc5:#148a72; --sc4:#68742a; --sc3:#cf9420; --sc2:#c85f20; --sc1:#b8283a;
   --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
@@ -45,7 +46,7 @@ img{max-width:100%}
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
   --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#8b7872; --o:#999c6f; --r:#c37c83;
-  --nawyk:#bf9bae;
+  --d:#fcbe68; --j:#61a498; --nawyk:#bf9bae;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
 }}
@@ -57,7 +58,7 @@ img{max-width:100%}
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
   --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#8b7872; --o:#999c6f; --r:#c37c83;
-  --nawyk:#bf9bae;
+  --d:#fcbe68; --j:#61a498; --nawyk:#bf9bae;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
 }
@@ -415,12 +416,13 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 "use strict";
 /* ---------- stałe z planera ---------- */
 const AREAS = {
-  S:{n:"studia",     c:"var(--s)", nr:"68"},
   G:{n:"gabinet",    c:"var(--g)", nr:"63"},
+  S:{n:"studia",     c:"var(--s)", nr:"68"},
   T:{n:"twórczość",  c:"var(--t)", nr:"73"},
-  Z:{n:"życie",      c:"var(--z)", nr:"77"},
-  O:{n:"odpoczynek", c:"var(--o)", nr:"57"},
-  R:{n:"termin",     c:"var(--r)", nr:"29"}
+  D:{n:"dom",        c:"var(--d)", nr:"16"},
+  J:{n:"Julia",      c:"var(--j)", nr:"38"},
+  Z:{n:"ja",         c:"var(--z)", nr:"77"},
+  O:{n:"odpoczynek", c:"var(--o)", nr:"57"}
 };
 const DAYTYPES = {
   Z:"zjazd — zajęcia 8:00–18:30, po nich odpoczynek",
@@ -2403,7 +2405,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-103748";
+const VER = "20261005-114321";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
