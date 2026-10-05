@@ -175,17 +175,18 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .axis{display:grid;grid-template-columns:30px 1fr;border:1px solid var(--line-2);
   border-radius:7px;overflow:hidden;background:var(--paper-2)}
 .hr{display:contents}
-.hlab{font-size:10.5px;color:var(--fg-3);padding-right:5px;text-align:right;height:16px;
+.hlab{font-size:10px;color:var(--fg-3);padding-right:5px;text-align:right;height:11px;
   display:flex;align-items:center;justify-content:flex-end;font-variant-numeric:tabular-nums;
   border-top:1px solid var(--line-2)}
-.hcell{height:16px;position:relative;border-top:1px solid var(--line-2);border-left:1px solid var(--line-2);
+.hcell{height:11px;position:relative;border-top:1px solid var(--line-2);border-left:1px solid var(--line-2);
   cursor:pointer}
 .hcell:hover{background:var(--pink-soft)}
 .hr.pol .hcell,.hr.pol .hlab{border-top-style:dotted}
+.hr.cwierc .hcell,.hr.cwierc .hlab{border-top-color:transparent}
 .hr:first-child .hlab,.hr:first-child .hcell{border-top:0}
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
-  display:flex;align-items:center;line-height:1.25;z-index:1;cursor:pointer}
+  display:flex;align-items:center;line-height:1.2;font-size:11px;z-index:1;cursor:pointer}
 .blk.done{background:color-mix(in srgb,currentColor 24%,transparent)}
 .blk.done span{font-weight:600}
 .blk span{color:var(--fg)}
@@ -1051,7 +1052,7 @@ function vDzis(){
         "przenieś niezrobione na jutro (" + otwarte.length + ")")) : null);
 
   /* oś godzin — wiersz na pół godziny, kliknięcie zakłada blok */
-  const H0=0, H1=23, POL=16;
+  const H0=0, H1=23, KW=11;            // wiersz na kwadrans
   const axis=el("div",{class:"axis"});
   const dodajOd=(hh,mm)=>{
     const kon=new Date(2000,0,1,hh,mm); kon.setMinutes(kon.getMinutes()+90);
@@ -1059,20 +1060,21 @@ function vDzis(){
       e:pad(kon.getHours())+":"+pad(kon.getMinutes()), area:"T", txt:"", done:false}]});
   };
   for(let h=H0;h<=H1;h++){
-    for(let pol=0; pol<2; pol++){
-      const mm=pol*30, pocz=h+pol*0.5;
-      const cell=el("div",{class:"hcell",title:"Kliknij, by zacząć tu blok",
+    for(let q=0; q<4; q++){
+      const mm=q*15, pocz=h+q*0.25;
+      const cell=el("div",{class:"hcell",
+        title:"Kliknij, by zacząć blok o "+pad(h)+":"+pad(mm),
         onclick:()=>dodajOd(h,mm)});
-      axis.append(el("div",{class:"hr"+(pol?" pol":"")},
-        el("div",{class:"hlab"}, pol ? "" : String(h)), cell));
+      axis.append(el("div",{class:"hr"+(q===2?" pol":(q?" cwierc":""))},
+        el("div",{class:"hlab"}, q ? "" : String(h)), cell));
       D.blocks.forEach(b=>{
         const s=+b.s.slice(0,2)+(+b.s.slice(3))/60, e=+b.e.slice(0,2)+(+b.e.slice(3))/60;
-        if(s>=pocz && s<pocz+0.5){
+        if(s>=pocz && s<pocz+0.25){
           const opis=[duza(b.txt)||duza((AREAS[b.area]||AREAS.Z).n), duza(b.proj)].filter(Boolean).join(" · ");
           cell.append(el("div",{class:"blk"+(b.done?" done":""),
             title:(b.done?"Zrobione":"Kliknij, gdy zrobione")+" · "+b.s+"–"+b.e,
-            style:"top:"+((s-pocz)*2*POL)+"px;height:"
-              +Math.max(18,(Math.max(.25,Math.min(e,H1+1)-s)*2*POL-2))+"px;color:"
+            style:"top:"+((s-pocz)*4*KW)+"px;height:"
+              +Math.max(16,(Math.max(.25,Math.min(e,H1+1)-s)*4*KW-2))+"px;color:"
               +(AREAS[b.area]||AREAS.Z).c,
             onclick:(ev)=>{ ev.stopPropagation();
               saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)}); }},
@@ -1109,7 +1111,7 @@ function vDzis(){
         {id:uid(),s:"20:00",e:"21:00",area:"T",txt:"Szydełko",proj:"",done:false}]})},"Szydełko")),
     bl,
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
-      +"Kliknij w gotowy blok, gdy go zrobisz — wypełni się kolorem. "
+      +"Siatka ma podziałkę co 15 minut. Kliknij w gotowy blok, gdy go zrobisz — wypełni się kolorem. "
       +"Blok = 90–120 minut jednej rzeczy, najwyżej 2–3 dziennie."));
 
   /* prawa strona */
@@ -2309,7 +2311,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-084055";
+const VER = "20261005-091720";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
