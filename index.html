@@ -158,11 +158,13 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 /* zadania */
 .tasks{display:flex;flex-direction:column;gap:1px}
 .task{display:flex;align-items:flex-start;gap:8px;padding:2px 3px;border-radius:6px;min-height:26px;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation;
   border:0;background:transparent;font:inherit;color:inherit;text-align:left;width:100%}
 .task:hover{background:var(--pink-soft)}
 .mark{border:0;background:transparent;width:18px;flex:0 0 18px;text-align:center;font-size:14px;
   line-height:1.65;padding:0}
 .ttxt{flex:1;min-width:0;line-height:1.55;word-break:break-word;background:transparent;border:0;
+  -webkit-touch-callout:none;
   padding:0;text-align:left;color:var(--fg)}
 .task.done .ttxt{color:var(--fg-2)}
 .task.canc .ttxt{color:var(--fg-3);text-decoration:line-through}
@@ -1105,17 +1107,20 @@ const CALERR = {
 /* ---------- przytrzymanie palcem ---------- */
 let ostatnieDlugie = 0;
 function przytrzymanie(elem, fn, ms){
-  let licznik=null, y0=0;
+  let licznik=null, x0=0, y0=0;
   const stop=()=>{ if(licznik){ clearTimeout(licznik); licznik=null; } };
   elem.addEventListener("pointerdown",(ev)=>{
-    y0=ev.clientY;
+    stop(); x0=ev.clientX; y0=ev.clientY;
     licznik=setTimeout(()=>{ licznik=null; ostatnieDlugie=Date.now();
       if(navigator.vibrate) navigator.vibrate(8); fn(); }, ms||420);
   });
-  elem.addEventListener("pointermove",(ev)=>{ if(Math.abs(ev.clientY-y0)>6) stop(); });
+  elem.addEventListener("pointermove",(ev)=>{
+    if(Math.abs(ev.clientY-y0)>10 || Math.abs(ev.clientX-x0)>10) stop();
+  });
   elem.addEventListener("pointerup",stop);
   elem.addEventListener("pointercancel",stop);
-  elem.addEventListener("pointerleave",stop);
+  // iPhone sam pokazuje menu zaznaczania przy długim dotknięciu — blokujemy je
+  elem.addEventListener("contextmenu",(ev)=>ev.preventDefault());
 }
 
 /* ---------- elementy wspólne ---------- */
@@ -1171,8 +1176,9 @@ function vDzis(){
       span.replaceWith(inp); inp.focus(); inp.select();
     }}, duza(t.txt) + (t.proj ? " · " + duza(t.proj) : ""));
     r.append(span, el("div",{class:"tools"},
-      el("button",{class:"ghost",title:"Obszar",onclick:()=>{const ks=Object.keys(AREAS);
-        upd(t.id,{area:ks[(ks.indexOf(t.area)+1)%ks.length]})}},(AREAS[t.area]||AREAS.K).nr),
+      el("button",{class:"ghost",title:"Obszar — kliknij, by przenieść",
+        onclick:()=>{ S.przenies=(S.przenies===t.id?null:t.id); S.projekt=null; S.notatka=null; render(); }},
+        (AREAS[t.area]||AREAS.K).nr),
       el("button",{class:"ghost",title:t.minor?"Nad kreskę":"Pod kreskę",
         onclick:()=>upd(t.id,{minor:!t.minor})}, t.minor?"↑":"↓"),
       el("button",{class:"ghost",title:t.proj?("Projekt: "+t.proj):"Przypisz projekt",
@@ -2710,7 +2716,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-120906";
+const VER = "20261005-122411";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
