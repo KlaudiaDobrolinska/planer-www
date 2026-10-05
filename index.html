@@ -199,6 +199,7 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .btn.papier:disabled{opacity:.3;cursor:default}
 .btn.papier:disabled:hover{background:transparent}
 .blk.ciagnie{box-shadow:0 3px 10px rgba(0,0,0,.25);opacity:.92;z-index:3}
+.blk.wybrany{box-shadow:0 0 0 2px var(--nawyk);z-index:2}
 .przenosnik{margin:0 4px 8px 28px;gap:4px}
 :root[data-skin="mac"] .przenosnik{margin:0 14px 9px 40px}
 .blokedyt{margin:8px 0;border-color:var(--pink)}
@@ -1369,9 +1370,12 @@ function vDzis(){
             onclick:(ev)=>{ ev.stopPropagation(); }},
             el("span",{}, (b.done?"✓ ":"")+opis)));
           const kafel = cell.lastChild;
+          const wybrany = (S.blokEdyt === b.id);
+          if(wybrany) kafel.classList.add("wybrany");
           let chwyt = null, licznik = null;
           const koniecChwytu = ()=>{ clearTimeout(licznik); licznik=null;
             kafel.style.touchAction=""; kafel.classList.remove("ciagnie"); };
+          kafel.addEventListener("contextmenu", ev=>ev.preventDefault());
           kafel.addEventListener("pointerdown",(ev)=>{
             ev.stopPropagation();
             const pole = kafel.getBoundingClientRect();
@@ -1379,14 +1383,20 @@ function vDzis(){
             chwyt = {y0:ev.clientY, ruch:false, gotowy:false,
                      tryb: przyDole ? "koniec" : "caly",
                      s:naMin(b.s), e:naMin(b.e), id:ev.pointerId};
-            licznik = setTimeout(()=>{
-              if(!chwyt || chwyt.ruch) return;
+            if(wybrany){
+              // otwarty blok przesuwa się od razu, bez przytrzymywania
               chwyt.gotowy = true;
               kafel.style.touchAction = "none";
               kafel.classList.add("ciagnie");
               try{ kafel.setPointerCapture(ev.pointerId); }catch(e){}
+              return;
+            }
+            licznik = setTimeout(()=>{            // przytrzymanie otwiera edycję
+              if(!chwyt || chwyt.ruch) return;
+              licznik = null; chwyt = null; ostatnieDlugie = Date.now();
               if(navigator.vibrate) navigator.vibrate(8);
-            }, 320);
+              S.blokEdyt = b.id; render();
+            }, 380);
           });
           kafel.addEventListener("pointermove",(ev)=>{
             if(!chwyt) return;
@@ -1409,6 +1419,7 @@ function vDzis(){
             koniecChwytu();
             if(!bylGotowy){
               chwyt=null;
+              if(Date.now()-ostatnieDlugie < 600) return;
               S.blokEdyt = (S.blokEdyt===b.id ? null : b.id); render();
               return;
             }
@@ -1490,18 +1501,26 @@ function vDzis(){
   if(S.osPelna) osPelnaBox.append(el("div",{class:"row"},
     el("button",{class:"ghost",onclick:()=>{S.osPelna=false;render()}},"zwiń puste godziny")));
 
+  const listaBlokow = el("div",{style:"display:flex;flex-direction:column;gap:6px"});
+  if(D.blocks.length){
+    const schowek = el("div",{hidden:true}); schowek.append(bl);
+    const prz = el("button",{class:"ghost"},"▸ lista bloków");
+    prz.addEventListener("click",()=>{ schowek.hidden=!schowek.hidden;
+      prz.textContent = (schowek.hidden?"▸":"▾")+" lista bloków"; });
+    listaBlokow.append(el("div",{class:"row"},prz), schowek);
+  }
   const secBloki=sec("Bloki",osPelnaBox, edytowany ? edytorBloku() : null,
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
         {id:uid(),s:"09:00",e:"10:30",area:"T",txt:"",done:false}]})},"Dodaj blok"),
       el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
         {id:uid(),s:"20:00",e:"21:00",area:"O",txt:"Szydełko",proj:"",done:false}]})},"Szydełko")),
-    bl,
+    listaBlokow,
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
       +"Siatka ma podziałkę co 15 minut. Bloki, które się zazębiają, dzielą szerokość — "
       +"możesz położyć konsultację na długim bloku gabinetu. "
-      +"Kliknij blok, żeby go otworzyć; przytrzymaj i przeciągnij, by przesunąć, "
-      +"a przy dolnej krawędzi — by zmienić długość. "
+      +"Przytrzymaj blok, żeby go otworzyć do edycji. Otwarty blok przeciągniesz palcem: "
+      +"w pionie przesuwasz, przy dolnej krawędzi zmieniasz długość. "
       +"Blok = 90–120 minut jednej rzeczy, najwyżej 2–3 dziennie."));
 
   /* prawa strona */
@@ -2727,7 +2746,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-124400";
+const VER = "20261005-134559";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
