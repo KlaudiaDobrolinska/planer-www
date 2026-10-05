@@ -422,7 +422,7 @@ const AREAS = {
   T:{n:"twórczość",  c:"var(--t)", nr:"73"},
   D:{n:"dom",        c:"var(--d)", nr:"16"},
   J:{n:"Julia",      c:"var(--j)", nr:"38"},
-  Z:{n:"ja",         c:"var(--z)", nr:"77"},
+  K:{n:"Klaudia",    c:"var(--z)", nr:"77"},
   O:{n:"odpoczynek", c:"var(--o)", nr:"57"}
 };
 const DAYTYPES = {
@@ -488,9 +488,9 @@ const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
 const SZABLONY = [];           // {nazwa, typ, tasks:[...], blocks:[...]}
 const KOTWICE = [                       // zadania, które pojawiają się same
-  {dni:[1,2,3,4,5,6,7], txt:"Leki",                 area:"Z"},
-  {dni:[1],             txt:"Lek tygodniowy",       area:"Z"},
-  {dni:[6],             txt:"Suplementy na tydzień",area:"Z"}
+  {dni:[1,2,3,4,5,6,7], txt:"Leki",                 area:"K"},
+  {dni:[1],             txt:"Lek tygodniowy",       area:"K"},
+  {dni:[6],             txt:"Suplementy na tydzień",area:"K"}
 ];
 const HOME = [["pranie","Pranie"],["zmyw","Zmywarka"],["glowa","Mycie głowy"],
   ["pielr","Pielęgnacja rano"],["pielw","Pielęgnacja wieczór"],["leki","Leki"],
@@ -624,7 +624,7 @@ function parsujWpis(wejscie){
   });
   // litera obszaru na początku, jak w planerze papierowym: „G - …", „G: …", „G …"
   if(!obszar){
-    const RYZYKOWNE = ["W","Z","O","I","A","U"];   // w polszczyźnie bywają samodzielnym słowem
+    const RYZYKOWNE = ["W","Z","O","I","A","U"];   // K jest bezpieczne   // w polszczyźnie bywają samodzielnym słowem
     s = s.replace(/^\s+([A-ZĄĆĘŁŃÓŚŹŻ])\s*([-–—:.])?\s+/, (m, lit, znak)=>{
       if(!AREAS[lit]) return m;
       if(!znak && RYZYKOWNE.includes(lit)) return m;   // „Z Julą…" to nie obszar
@@ -653,9 +653,32 @@ function parsujWpis(wejscie){
 
   const czysty = s.replace(/\s+/g," ").trim();
   const czesci = czysty.split(";").map(x=>duza(x)).filter(Boolean);
-  return {data, od, doo, obszar, txt: czesci[0] || "", czesci};
+  const rozbij = (x)=>{
+    const m = x.match(/^(.+?)\s*[·:]\s*(.+)$/);
+    return m ? {txt:duza(m[1]), proj:duza(m[2])} : {txt:x, proj:""};
+  };
+  const pary = czesci.map(rozbij);
+  return {data, od, doo, obszar, txt:(pary[0]||{}).txt || "", czesci, pary};
 }
 function rodzajWpisu(r){ return r.doo ? "blok" : (r.od ? "wydarzenie" : "zadanie"); }
+
+/* ---------- projekty (np. szydełkowe) ---------- */
+function projektyWUzyciu(){
+  const zbior=new Set();
+  const zbierz=(obj)=>{
+    if(!obj) return;
+    (obj.tasks||[]).forEach(x=>{ if(x.proj) zbior.add(x.proj); });
+    (obj.blocks||[]).forEach(x=>{ if(x.proj) zbior.add(x.proj); });
+  };
+  Object.values(S.mdays||{}).forEach(zbierz);
+  Object.values(S.day||{}).forEach(zbierz);
+  return [...zbior].sort((a,b)=>a.localeCompare(b,"pl"));
+}
+function listaProjektow(){
+  const dl=el("datalist",{id:"projekty"});
+  projektyWUzyciu().forEach(x=>dl.append(el("option",{value:x})));
+  return dl;
+}
 
 /* ---------- dopisanie zadania do dowolnego dnia ---------- */
 async function dopiszZadanie(ds, zadanie){
@@ -678,7 +701,7 @@ function dodajKotwice(ds){
   const nowe = KOTWICE
     .filter(k => (k.dni||[]).includes(dow) && (k.txt||"").trim())
     .filter(k => !D.tasks.some(t => t.txt === k.txt))
-    .map(k => ({id:uid(), txt:duza(k.txt), st:"todo", area:k.area||"Z",
+    .map(k => ({id:uid(), txt:duza(k.txt), st:"todo", area:k.area||"K",
                 minor:true, kotwica:true}));
   kotwicaTrwa = ds;
   saveDay(ds, {tasks:[...D.tasks, ...nowe], kotwice:true});
@@ -988,7 +1011,7 @@ const CALERR = {
 };
 
 /* ---------- elementy wspólne ---------- */
-const areaDot = a => el("span",{class:"dot",style:"background:"+(AREAS[a]||AREAS.Z).c});
+const areaDot = a => el("span",{class:"dot",style:"background:"+(AREAS[a]||AREAS.K).c});
 function textRow(val,ph,on){
   const i=el("input",{type:"text",value:val||"",placeholder:ph});
   i.addEventListener("change",()=>on(i.value));
@@ -1028,7 +1051,7 @@ function vDzis(){
 
   function taskRow(t){
     const r=el("div",{class:"task "+t.st});
-    r.append(el("button",{class:"mark",style:"color:"+(AREAS[t.area]||AREAS.Z).c,
+    r.append(el("button",{class:"mark",style:"color:"+(AREAS[t.area]||AREAS.K).c,
       title:STNAME[t.st]+" — kliknij, by zmienić",
       onclick:()=>{const c=cyklZnakow();
         upd(t.id,{st:c[(c.indexOf(t.st)+1)%c.length]||c[0]})}}, STMARK[t.st]||"•"));
@@ -1037,17 +1060,28 @@ function vDzis(){
       inp.addEventListener("blur",()=>upd(t.id,{txt:duza(inp.value)||t.txt}));
       inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();inp.blur()}});
       span.replaceWith(inp); inp.focus(); inp.select();
-    }}, duza(t.txt));
+    }}, duza(t.txt) + (t.proj ? " · " + duza(t.proj) : ""));
     r.append(span, el("div",{class:"tools"},
       el("button",{class:"ghost",title:"Obszar",onclick:()=>{const ks=Object.keys(AREAS);
-        upd(t.id,{area:ks[(ks.indexOf(t.area)+1)%ks.length]})}},(AREAS[t.area]||AREAS.Z).nr),
+        upd(t.id,{area:ks[(ks.indexOf(t.area)+1)%ks.length]})}},(AREAS[t.area]||AREAS.K).nr),
       el("button",{class:"ghost",title:t.minor?"Nad kreskę":"Pod kreskę",
         onclick:()=>upd(t.id,{minor:!t.minor})}, t.minor?"↑":"↓"),
+      el("button",{class:"ghost",title:t.proj?("Projekt: "+t.proj):"Przypisz projekt",
+        onclick:()=>{ S.projekt = (S.projekt===t.id ? null : t.id); render(); }},
+        t.proj?"◆":"◇"),
       el("button",{class:"ghost",title:t.note?"Notatka":"Dodaj notatkę",
         onclick:()=>{ S.notatka = (S.notatka===t.id ? null : t.id); render(); }},
         t.note?"≡":"+≡"),
       el("button",{class:"ghost",title:"Wyżej",onclick:()=>move(t.id,-1)},"⌃"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{tasks:D.tasks.filter(x=>x.id!==t.id)})},"✕")));
+    if(S.projekt===t.id){
+      const pr=el("input",{type:"text",class:"tnote",list:"projekty",
+        placeholder:"Projekt — np. Mollette",value:t.proj||""});
+      pr.addEventListener("change",()=>{ upd(t.id,{proj:duza(pr.value)}); S.projekt=null; });
+      const paczka=el("div",{class:"taskwrap"}, r, pr, listaProjektow());
+      setTimeout(()=>pr.focus(),40);
+      return paczka;
+    }
     if(!t.note && S.notatka!==t.id) return r;
     const ta=el("textarea",{rows:2,class:"tnote",placeholder:"Notatka — szczegóły, nad czym pracujemy…"});
     ta.value=t.note||"";
@@ -1072,10 +1106,10 @@ function vDzis(){
     const wyd=D.tasks.filter(x=>x.st==="event");
     if(wyd.length) grupy.push(["Wizyty i spotkania", wyd, null]);
     Object.keys(AREAS).forEach(k=>{
-      const g=D.tasks.filter(x=>x.st!=="event" && (x.area||"Z")===k);
+      const g=D.tasks.filter(x=>x.st!=="event" && (x.area||"K")===k);
       if(g.length) grupy.push([duza((AREAS[k]||{}).n||k), g, k]);
     });
-    const reszta=D.tasks.filter(x=>x.st!=="event" && !AREAS[x.area||"Z"]);
+    const reszta=D.tasks.filter(x=>x.st!=="event" && !AREAS[x.area||"K"]);
     if(reszta.length) grupy.push(["Pozostałe", reszta, null]);
     grupy.forEach(([tytul,poz,k])=>{
       list.append(el("div",{class:"grupa"},
@@ -1087,7 +1121,7 @@ function vDzis(){
   }
 
   const inp=el("input",{type:"text",placeholder:"Nowe zadanie…",id:"nowezadanie"});
-  let na="Z";
+  let na="K";
   const addT=()=>{const v=duza(inp.value); if(!v)return;
     saveDay(d,{tasks:[...D.tasks,{id:uid(),txt:v,st:"todo",area:na,minor:false}]}); inp.value=""};
   inp.addEventListener("keydown",e=>{if(e.key==="Enter")addT()});
@@ -1151,12 +1185,12 @@ function vDzis(){
       D.blocks.forEach(b=>{
         const s=+b.s.slice(0,2)+(+b.s.slice(3))/60, e=+b.e.slice(0,2)+(+b.e.slice(3))/60;
         if(s>=pocz && s<pocz+0.25){
-          const opis=[duza(b.txt)||duza((AREAS[b.area]||AREAS.Z).n), duza(b.proj)].filter(Boolean).join(" · ");
+          const opis=[duza(b.txt)||duza((AREAS[b.area]||AREAS.K).n), duza(b.proj)].filter(Boolean).join(" · ");
           cell.append(el("div",{class:"blk"+(b.done?" done":""),
             title:(b.done?"Zrobione":"Kliknij, gdy zrobione")+" · "+b.s+"–"+b.e,
             style:"top:"+((s-pocz)*4*KW)+"px;height:"
               +Math.max(16,(Math.max(.25,Math.min(e,H1+1)-s)*4*KW-2))+"px;color:"
-              +(AREAS[b.area]||AREAS.Z).c,
+              +(AREAS[b.area]||AREAS.K).c,
             onclick:(ev)=>{ ev.stopPropagation();
               saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)}); }},
             el("span",{}, (b.done?"✓ ":"")+opis)));
@@ -1169,13 +1203,13 @@ function vDzis(){
     const t1=el("input",{type:"time",value:b.s,class:"tin"});
     const t2=el("input",{type:"time",value:b.e,class:"tin"});
     const tx=el("input",{type:"text",value:duza(b.txt||""),placeholder:"Nazwa bloku"});
-    const pr=el("input",{type:"text",value:duza(b.proj||""),placeholder:"szczegół — np. który projekt",
+    const pr=el("input",{type:"text",value:duza(b.proj||""),list:"projekty",placeholder:"projekt — np. Mollette",
       style:"width:auto;flex:1 1 150px;min-width:0"});
     const sv=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
       ?{...x,s:t1.value,e:t2.value,txt:duza(tx.value),proj:duza(pr.value)}:x)});
     [t1,t2,tx,pr].forEach(i=>i.addEventListener("change",sv));
-    bl.append(el("div",{class:"task blkrow"},
-      el("button",{class:"mark",style:"color:"+(AREAS[b.area]||AREAS.Z).c,title:"Obszar",
+    bl.append(listaProjektow(), el("div",{class:"task blkrow"},
+      el("button",{class:"mark",style:"color:"+(AREAS[b.area]||AREAS.K).c,title:"Obszar",
         onclick:()=>{const ks=Object.keys(AREAS);
           saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,area:ks[(ks.indexOf(b.area)+1)%ks.length]}:x)})}},"■"),
       t1,t2,tx,pr,
@@ -1196,7 +1230,7 @@ function vDzis(){
       el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
         {id:uid(),s:"09:00",e:"10:30",area:"T",txt:"",done:false}]})},"Dodaj blok"),
       el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
-        {id:uid(),s:"20:00",e:"21:00",area:"T",txt:"Szydełko",proj:"",done:false}]})},"Szydełko")),
+        {id:uid(),s:"20:00",e:"21:00",area:"O",txt:"Szydełko",proj:"",done:false}]})},"Szydełko")),
     bl,
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
       +"Siatka ma podziałkę co 15 minut. Kliknij w gotowy blok, gdy go zrobisz — wypełni się kolorem. "
@@ -1219,7 +1253,7 @@ function vDzis(){
       saveDay(d,{
         type: sz.typ || D.type,
         tasks:[...D.tasks, ...(sz.tasks||[]).map(x=>({id:uid(), txt:duza(x.txt), st:"todo",
-          area:x.area||"Z", minor:!!x.minor}))],
+          area:x.area||"K", minor:!!x.minor}))],
         blocks:[...D.blocks, ...(sz.blocks||[]).map(x=>({id:uid(), s:x.s, e:x.e,
           area:x.area||"T", txt:duza(x.txt||""), proj:"", done:false}))]});
     }}, sz.nazwa)));
@@ -1281,21 +1315,21 @@ function vDzis(){
       "„Pranie ciemne” → zadanie · „12:30 Psychoterapia” → wydarzenie · "
       +"„jutro 9:00-11:00 Gabinet” → blok. Dzień: dziś / jutro / pon / 5.10 (kropka). "
       +"Godzina z dwukropkiem. Obszar: litera na początku, np. G - … albo #G. "
-      +"Średnik rozdziela kilka zadań naraz."; return; }
+      +"Średnik rozdziela kilka zadań. Kropka środkowa albo dwukropek oddziela projekt: Szydełko · Mollette."; return; }
     const kt=rodzajWpisu(r), dd=parse(r.data);
     const ile = (kt==="zadanie" && r.czesci.length>1) ? (" ×"+r.czesci.length) : "";
     szPodg.textContent = {zadanie:"Zadanie", blok:"Blok", wydarzenie:"Wydarzenie w kalendarzu"}[kt] + ile
       + " · " + dd.getDate() + " " + MONTHS[dd.getMonth()]
       + (r.od ? " · " + r.od + (r.doo ? "–"+r.doo : "") : "")
-      + (r.obszar ? " · " + (AREAS[r.obszar]||AREAS.Z).n : "")
-      + " · " + r.czesci.join(" + ");
+      + (r.obszar ? " · " + (AREAS[r.obszar]||AREAS.K).n : "")
+      + " · " + r.pary.map(x=>x.txt + (x.proj ? " · "+x.proj : "")).join(" + ");
   };
   szPole.addEventListener("input",odswiezPodg);
   const szWyslij=async()=>{
     const r=parsujWpis(szPole.value); if(!r.txt) return;
-    const kt=rodzajWpisu(r), ob=r.obszar||"Z";
+    const kt=rodzajWpisu(r), ob=r.obszar||"K";
     if(kt==="zadanie"){
-      const nowe = r.czesci.map(x=>({id:uid(), txt:x, st:"todo", area:ob, minor:false}));
+      const nowe = r.pary.map(x=>({id:uid(), txt:x.txt, proj:x.proj, st:"todo", area:ob, minor:false}));
       if(r.data===d) saveDay(d,{tasks:[...D.tasks, ...nowe]});
       else for(const z of nowe) await dopiszZadanie(r.data, z);
     }else if(kt==="blok"){
@@ -1655,7 +1689,7 @@ function vCele(){
     const s=sec(null,el("div",{class:"row tight",style:"border-bottom:1px solid var(--line-2);padding-bottom:5px"},
       areaDot(g.area),nameI,el("span",{class:"spacer"}),
       el("button",{class:"ghost",title:"Obszar",onclick:()=>{const ks=Object.keys(AREAS);
-        save("goals/"+g.id,{...g,area:ks[(ks.indexOf(g.area)+1)%ks.length]})}},(AREAS[g.area]||AREAS.Z).nr),
+        save("goals/"+g.id,{...g,area:ks[(ks.indexOf(g.area)+1)%ks.length]})}},(AREAS[g.area]||AREAS.K).nr),
       el("button",{class:"ghost",title:"Usuń cel",onclick:()=>{S.db&&S.db.doc("goals/"+g.id).delete()}},"✕")));
     const kroki = g.kroki || {};
     const ruszylo = Object.values(kroki).reduce((n,a)=>n+((a&&a.length)||0),0);
@@ -1923,7 +1957,7 @@ function edytorKotwic(box){
       el("button",{class:"ghost",title:"Obszar",onclick:()=>{
         const ks=Object.keys(AREAS);
         KOTWICE[i].area=ks[(ks.indexOf(k.area)+1)%ks.length]; cfgZapisz(); render();
-      }},(AREAS[k.area]||AREAS.Z).nr),
+      }},(AREAS[k.area]||AREAS.K).nr),
       el("button",{class:"ghost",title:"Usuń kotwicę",onclick:()=>{
         if(!confirm("Usunąć kotwicę „"+(k.txt||"")+"”?")) return;
         KOTWICE.splice(i,1); cfgZapisz(); render();
@@ -1931,7 +1965,7 @@ function edytorKotwic(box){
   });
   box.append(el("div",{class:"row"},
     el("button",{class:"btn",onclick:()=>{
-      KOTWICE.push({dni:[1,2,3,4,5,6,7], txt:"Nowa kotwica", area:"Z"}); cfgZapisz(); render();
+      KOTWICE.push({dni:[1,2,3,4,5,6,7], txt:"Nowa kotwica", area:"K"}); cfgZapisz(); render();
     }},"Dodaj kotwicę"),
     el("button",{class:"ghost",onclick:()=>{
       if(!confirm("Przywrócić kotwice fabryczne?")) return;
@@ -2406,7 +2440,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-114553";
+const VER = "20261005-115027";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
