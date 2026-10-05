@@ -496,10 +496,22 @@ const SCALES = {
 };
 const SCOL = {5:"var(--sc5)",4:"var(--sc4)",3:"var(--sc3)",2:"var(--sc2)",1:"var(--sc1)"};
 const CCOL = {1:"var(--sc5)",2:"var(--sc4)",3:"var(--sc3)",4:"var(--sc2)",5:"var(--sc1)"};
-const INKTOBER = ["Kawa","Pióro wieczne","Dynia","Liście","Książka","Ołówek","Lisek","Ogień","Wiewiórka",
-  "Znaczek pocztowy","Atrament","Marzenie","Herbata","Zaklęcie","Deszcz","Jeż","Wiatr","Szarlotka","Spacer",
-  "Grzyby","Aparat","Kocyk","Minimum","Kruk","Herbatnik","Klucz","Zagadka","Wspomnienie","Strach na wróble",
-  "Nietoperz","Duch"];
+/* dwa wyzwania na październik, oba prowadzone równolegle */
+const INKTOBER = [
+  {h:"#INKTOBERnoteka", dni:["Kawa","Pióro wieczne","Dynia","Liście","Książka","Ołówek","Lisek","Ogień",
+    "Wiewiórka","Znaczek pocztowy","Atrament","Marzenie","Herbata","Zaklęcie","Deszcz","Jeż","Wiatr",
+    "Szarlotka","Spacer","Grzyby","Aparat","Kocyk","Minimum","Kruk","Herbatnik","Klucz","Zagadka",
+    "Wspomnienie","Strach na wróble","Nietoperz","Duch"]},
+  {h:"#inkseatober", dni:["Dom","Oko","Drzewo","Tulipan","Książka","Droga","Ogień","Okno","Pudełko","Koło",
+    "Ryba","Światło","Cień","Ptak","Krzesło","Pismo","Radość","Kubek","Pies","Kot","Słoń","Miłość","Woda",
+    "Drzwi","Wazon","Liść","Muszla","Spacer","Owoc","Morze","Człowiek"]}
+];
+const inkNaDzien = (dstr)=>{
+  const dt=parse(dstr);
+  if(dt.getMonth()!==9) return [];
+  const i=dt.getDate()-1;
+  return INKTOBER.map(w=>({h:w.h, slowo:w.dni[i]})).filter(x=>x.slowo);
+};
 const REVIEW = ["Co się udało?","Co nie wyszło i dlaczego?","Czy bliżej celów kwartału?",
   "TOP 3 na przyszły tydzień","Energia: ile dni N, co pomagało?"];
 const DOW = ["pon","wt","śr","czw","pt","sob","nd"];
@@ -1200,12 +1212,16 @@ function vDzis(){
   }
   if(S.cal.msg) secCal.append(el("p",{class:"note"},S.cal.msg));
 
-  const mo=parse(d), ink=(mo.getMonth()===9)?INKTOBER[mo.getDate()-1]:null;
+  const mo=parse(d), ink=inkNaDzien(d);
+  const haslaKrotko = [...new Set(ink.map(x=>x.slowo))].join(" · ");
   const ta=el("textarea",{rows:9,class:"grow",style:"font-family:var(--disp);color:var(--dziennik);font-size:15px",
-    placeholder:ink?"Inktober: "+ink:"Co z dziś zostaje?"});
+    placeholder: ink.length ? ("Inktober: "+haslaKrotko) : "Co z dziś zostaje?"});
   ta.value=D.journal||"";
   ta.addEventListener("change",()=>saveDay(d,{journal:duza(ta.value)}));
-  const secDz=sec(ink?("Dziennik · "+mo.getDate()+" "+ink):"Dziennik",ta);
+  const secDz=sec(ink.length ? ("Dziennik · "+mo.getDate()+" "+haslaKrotko) : "Dziennik", ta);
+  if(ink.length) secDz.append(el("div",{class:"row",style:"gap:14px"},
+    ...ink.map(x=>el("span",{class:"row",style:"gap:5px"},
+      el("span",{class:"chip"},x.h), el("b",{style:"font-weight:600"},x.slowo)))));
 
   /* --- szybki wpis --- */
   const szPole=el("input",{type:"text",placeholder:"np. jutro 9:00-11:00 Gabinet #G"});
@@ -2338,7 +2354,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-092214";
+const VER = "20261005-092516";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
