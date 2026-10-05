@@ -191,8 +191,11 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
   display:flex;align-items:center;line-height:1.2;font-size:11px;z-index:1;cursor:pointer}
-.cofnij:disabled{opacity:.35;cursor:default}
-.cofnij:disabled:hover{border-color:var(--line);color:var(--fg)}
+.btn.papier{color:var(--nawyk);border-color:color-mix(in srgb,var(--nawyk) 45%,transparent)}
+.btn.papier:hover:not(:disabled){border-color:var(--nawyk);
+  background:color-mix(in srgb,var(--nawyk) 12%,transparent);color:var(--nawyk)}
+.btn.papier:disabled{opacity:.3;cursor:default}
+.btn.papier:disabled:hover{background:transparent}
 .blk.ciagnie{box-shadow:0 3px 10px rgba(0,0,0,.25);opacity:.92;z-index:3}
 .przenosnik{margin:0 4px 8px 28px;gap:4px}
 :root[data-skin="mac"] .przenosnik{margin:0 14px 9px 40px}
@@ -592,8 +595,8 @@ const sec = (title,...kids) => el("div",{class:"sec"}, title?el("h3",{},title):n
 
 /* ---------- zapis ---------- */
 const QUEUE = new Map();
-/* ---------- cofanie ostatnich zmian ---------- */
-const COFKA = [];
+/* ---------- cofanie i przywracanie (do 25 kroków) ---------- */
+const COFKA = [], PONOWKA = [], GLEBIA = 25;
 let cofkaWToku = false;
 function stanDo(path){
   const [col,id] = path.split("/");
@@ -615,19 +618,22 @@ function opisSciezki(path){
   if(col==="lists")  return "lista";
   return col;
 }
-function zapamietajCofke(path){
+function migawka(path){
+  const st = stanDo(path);
+  return {path, opis:opisSciezki(path), kiedy:Date.now(),
+    stan: st ? JSON.parse(JSON.stringify(st)) : null};
+}
+function zapamietajCofke(path, stary){
   if(cofkaWToku || path.startsWith("cfg/")) return;
+  PONOWKA.length = 0;                       // nowa zmiana przerywa łańcuch przywracania
   const ost = COFKA[COFKA.length-1];
   if(ost && ost.path===path && Date.now()-ost.kiedy < 2500){ ost.kiedy = Date.now(); return; }
-  const st = stanDo(path);
+  const st = (arguments.length > 1) ? stary : stanDo(path);
   COFKA.push({path, opis:opisSciezki(path), kiedy:Date.now(),
     stan: st ? JSON.parse(JSON.stringify(st)) : null});
-  if(COFKA.length > 25) COFKA.shift();
+  if(COFKA.length > GLEBIA) COFKA.shift();
 }
-function cofnij(){
-  const w = COFKA.pop();
-  if(!w || !S.db) return;
-  cofkaWToku = true;
+function przywrocStan(w){
   const [col,id] = w.path.split("/");
   if(w.stan === null){
     if(col==="days")   delete S.day[id];
@@ -642,9 +648,26 @@ function cofnij(){
     if(col==="health") S.health[id] = w.stan;
     save(w.path, w.stan);
   }
+}
+function cofnij(){
+  const w = COFKA.pop();
+  if(!w || !S.db) return;
+  cofkaWToku = true;
+  PONOWKA.push(migawka(w.path));
+  if(PONOWKA.length > GLEBIA) PONOWKA.shift();
+  przywrocStan(w);
   cofkaWToku = false;
-  S.blokEdyt = null;
-  render();
+  S.blokEdyt = null; render();
+}
+function ponow(){
+  const w = PONOWKA.pop();
+  if(!w || !S.db) return;
+  cofkaWToku = true;
+  COFKA.push(migawka(w.path));
+  if(COFKA.length > GLEBIA) COFKA.shift();
+  przywrocStan(w);
+  cofkaWToku = false;
+  S.blokEdyt = null; render();
 }
 
 function save(path, patch){
@@ -661,9 +684,11 @@ function save(path, patch){
   QUEUE.set(path+"#t", t);
 }
 const dayDoc  = d => ({date:d, type:"", must:"", tasks:[], blocks:[], journal:"", ...(S.day[d]||{})});
-const saveDay = (d,p)=>{ S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d]); render(); };
+const saveDay = (d,p)=>{ zapamietajCofke("days/"+d, S.day[d] ? dayDoc(d) : null);
+  S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d]); render(); };
 const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, ...(S.week[w]||{})});
-const saveWeek= (w,p)=>{ S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
+const saveWeek= (w,p)=>{ zapamietajCofke("weeks/"+w, S.week[w] ? weekDoc(w) : null);
+  S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
 const naMin  = h => (+h.slice(0,2))*60 + (+h.slice(3));
 const naCzas = m => { const x=Math.max(0,Math.min(1439,Math.round(m)));
@@ -1803,6 +1828,7 @@ function vTrackery(){
           const day={...(H[i]||{})};
           if(nx==null) delete day[k]; else day[k]=nx;
           const nh={...H,[i]:day};
+          zapamietajCofke("habits/"+S.month, S.habits[S.month] || null);
           S.habits[S.month]=nh; save("habits/"+S.month,nh); render();
         }})));
     }
@@ -1847,6 +1873,7 @@ function vTrackery(){
           const nx = cur==null?5:(cur===1?null:cur-1);
           const nh={...He,[i]:{...(He[i]||{})}};
           if(nx==null) delete nh[i][k]; else nh[i][k]=nx;
+          zapamietajCofke("health/"+S.month, S.health[S.month] || null);
           S.health[S.month]=nh; save("health/"+S.month,nh); render();
         }})));
       }
@@ -2604,12 +2631,16 @@ function buildBar(){
       el("span",{class:"spacer"}));
   }
   if(S.db){
-    const ost = COFKA[COFKA.length-1];
-    const b = el("button",{class:"btn icon cofnij",
-      title: ost ? ("Cofnij ostatnią zmianę · "+ost.opis) : "Nie ma czego cofać",
+    const ost = COFKA[COFKA.length-1], pon = PONOWKA[PONOWKA.length-1];
+    const bc = el("button",{class:"btn icon papier",
+      title: ost ? ("Cofnij · "+ost.opis+"  ("+COFKA.length+"/"+GLEBIA+")") : "Nie ma czego cofać",
       onclick:cofnij},"↩");
-    if(!ost) b.disabled = true;
-    bar.append(b);
+    if(!ost) bc.disabled = true;
+    const bp = el("button",{class:"btn icon papier",
+      title: pon ? ("Przywróć · "+pon.opis) : "Nie ma czego przywrócić",
+      onclick:ponow},"↪");
+    if(!pon) bp.disabled = true;
+    bar.append(bc, bp);
   }
 }
 function dopasujPasek(){
@@ -2679,7 +2710,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-120424";
+const VER = "20261005-120906";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
