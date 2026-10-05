@@ -191,6 +191,8 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .blk{position:absolute;left:3px;right:3px;border-radius:4px;padding:0 6px;font-size:11.5px;
   overflow:hidden;white-space:nowrap;border:1.5px solid currentColor;
   display:flex;align-items:center;line-height:1.2;font-size:11px;z-index:1;cursor:pointer}
+.blk.ciagnie{box-shadow:0 3px 10px rgba(0,0,0,.25);opacity:.92;z-index:3}
+.blokedyt{margin:8px 0;border-color:var(--pink)}
 .blk.waski{font-size:10px;padding:0 4px;background:color-mix(in srgb,var(--paper) 92%,transparent)}
 .blk.waski.done{background:color-mix(in srgb,currentColor 24%,transparent)}
 .blk.done{background:color-mix(in srgb,currentColor 24%,transparent)}
@@ -602,6 +604,9 @@ const saveDay = (d,p)=>{ S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d])
 const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, ...(S.week[w]||{})});
 const saveWeek= (w,p)=>{ S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
+const naMin  = h => (+h.slice(0,2))*60 + (+h.slice(3));
+const naCzas = m => { const x=Math.max(0,Math.min(1439,Math.round(m)));
+  return pad(Math.floor(x/60))+":"+pad(x%60); };
 const duza = s => {                 // wielka pierwsza LITERA, nawet gdy wpis zaczyna się od godziny
   const v = (s||"").trim();
   if(!v) return v;
@@ -624,12 +629,11 @@ function parsujWpis(wejscie){
     if(klucz) obszar = klucz;
     return " ";
   });
-  // litera obszaru na początku, jak w planerze papierowym: „G - …", „G: …", „G …"
+  // litera obszaru na początku, jak w planerze papierowym: „G coś", „G - coś", „G: coś".
+  // Gdy treść ma się zaczynać od tej samej litery, piszesz ją dwa razy: K K mamą.
   if(!obszar){
-    const RYZYKOWNE = ["W","Z","O","I","A","U"];   // K jest bezpieczne   // w polszczyźnie bywają samodzielnym słowem
-    s = s.replace(/^\s+([A-ZĄĆĘŁŃÓŚŹŻ])\s*([-–—:.])?\s+/, (m, lit, znak)=>{
+    s = s.replace(/^\s+([A-ZĄĆĘŁŃÓŚŹŻ])\s*[-–—:.]?\s+/, (m, lit)=>{
       if(!AREAS[lit]) return m;
-      if(!znak && RYZYKOWNE.includes(lit)) return m;   // „Z Julą…" to nie obszar
       obszar = lit;
       return " ";
     });
@@ -1227,9 +1231,66 @@ function vDzis(){
               +Math.max(16,(Math.max(.25,Math.min(e,H1+1)-s)*4*KW-2))+"px;"
               +"left:calc("+lewo+"% + 3px);width:calc("+szer+"% - 6px);right:auto;color:"
               +(AREAS[b.area]||AREAS.K).c,
-            onclick:(ev)=>{ ev.stopPropagation();
-              saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)}); }},
+            onclick:(ev)=>{ ev.stopPropagation(); }},
             el("span",{}, (b.done?"✓ ":"")+opis)));
+          const kafel = cell.lastChild;
+          let chwyt = null, licznik = null;
+          const koniecChwytu = ()=>{ clearTimeout(licznik); licznik=null;
+            kafel.style.touchAction=""; kafel.classList.remove("ciagnie"); };
+          kafel.addEventListener("pointerdown",(ev)=>{
+            ev.stopPropagation();
+            const pole = kafel.getBoundingClientRect();
+            const przyDole = (ev.clientY > pole.bottom - 10) && pole.height > 40;
+            chwyt = {y0:ev.clientY, ruch:false, gotowy:false,
+                     tryb: przyDole ? "koniec" : "caly",
+                     s:naMin(b.s), e:naMin(b.e), id:ev.pointerId};
+            licznik = setTimeout(()=>{
+              if(!chwyt || chwyt.ruch) return;
+              chwyt.gotowy = true;
+              kafel.style.touchAction = "none";
+              kafel.classList.add("ciagnie");
+              try{ kafel.setPointerCapture(ev.pointerId); }catch(e){}
+              if(navigator.vibrate) navigator.vibrate(8);
+            }, 320);
+          });
+          kafel.addEventListener("pointermove",(ev)=>{
+            if(!chwyt) return;
+            const dy = ev.clientY - chwyt.y0;
+            if(!chwyt.gotowy){ if(Math.abs(dy)>5){ chwyt.ruch=true; koniecChwytu(); chwyt=null; } return; }
+            ev.preventDefault();
+            const krok = Math.round(dy/KW)*15;
+            if(chwyt.tryb==="caly"){
+              kafel.style.top = ((s-pocz)*4*KW + krok/15*KW) + "px";
+            }else{
+              const nowa = Math.max(16, (chwyt.e - chwyt.s + krok)/15*KW - 2);
+              kafel.style.height = nowa + "px";
+            }
+          });
+          const puszczenie=(ev)=>{
+            if(!chwyt) return;
+            const dy = ev.clientY - chwyt.y0;
+            const bylGotowy = chwyt.gotowy;
+            const krok = Math.round(dy/KW)*15;
+            koniecChwytu();
+            if(!bylGotowy){
+              chwyt=null;
+              S.blokEdyt = (S.blokEdyt===b.id ? null : b.id); render();
+              return;
+            }
+            const dl = chwyt.e - chwyt.s;
+            let ns = chwyt.s, ne = chwyt.e;
+            if(chwyt.tryb==="caly"){
+              ns = Math.max(0, Math.min(1440-dl, chwyt.s + krok)); ne = ns + dl;
+            }else{
+              ne = Math.max(chwyt.s + 15, Math.min(1440, chwyt.e + krok));
+            }
+            chwyt = null;
+            if(ns!==naMin(b.s) || ne!==naMin(b.e))
+              saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,s:naCzas(ns),e:naCzas(ne)}:x)});
+            else render();
+          };
+          kafel.addEventListener("pointerup",puszczenie);
+          kafel.addEventListener("pointercancel",()=>{ koniecChwytu(); chwyt=null; render(); });
         }
       });
     }
@@ -1254,6 +1315,39 @@ function vDzis(){
         b.done?"✓":"○"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{blocks:D.blocks.filter(x=>x.id!==b.id)})},"✕")));
   });
+  const edytowany = D.blocks.find(x=>x.id===S.blokEdyt);
+  const edytorBloku = ()=>{
+    const b = edytowany;
+    const nz=el("input",{type:"text",value:duza(b.txt||""),placeholder:"Nazwa bloku"});
+    const pr=el("input",{type:"text",value:duza(b.proj||""),list:"projekty",placeholder:"Projekt"});
+    const t1=el("input",{type:"time",class:"tin",value:b.s});
+    const t2=el("input",{type:"time",class:"tin",value:b.e});
+    const op=el("textarea",{rows:3,placeholder:"Opis — co dokładnie, na czym się skupić"});
+    op.value=b.opis||"";
+    const zap=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
+      ?{...x, txt:duza(nz.value), proj:duza(pr.value), s:t1.value, e:t2.value, opis:duza(op.value)}:x)});
+    [nz,pr,t1,t2,op].forEach(i=>i.addEventListener("change",zap));
+    const ob=el("div",{class:"row",style:"gap:3px"});
+    Object.entries(AREAS).forEach(([k,v])=>ob.append(el("button",{class:"btn icon"+(b.area===k?" on":""),
+      title:v.n,onclick:()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id?{...x,area:k}:x)})},k)));
+    return el("div",{class:"sec blokedyt"},
+      el("h3",{},"Blok · "+b.s+"–"+b.e),
+      el("label",{class:"fld"},"Nazwa",nz),
+      el("label",{class:"fld"},"Projekt",pr),
+      el("div",{class:"row"},el("span",{class:"note",style:"min-width:36px"},"Czas"),t1,t2),
+      el("label",{class:"fld"},"Obszar",ob),
+      el("label",{class:"fld"},"Opis",op),
+      listaProjektow(),
+      el("div",{class:"row"},
+        el("button",{class:"btn"+(b.done?" on":""),onclick:()=>saveDay(d,
+          {blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)})}, b.done?"✓ Zrobione":"Oznacz jako zrobione"),
+        el("button",{class:"ghost",onclick:()=>{S.blokEdyt=null;render()}},"zamknij"),
+        el("button",{class:"ghost",onclick:()=>{
+          if(!confirm("Usunąć blok „"+(b.txt||"")+"”?")) return;
+          S.blokEdyt=null; saveDay(d,{blocks:D.blocks.filter(x=>x.id!==b.id)});
+        }},"usuń")));
+  };
+
   const osPelnaBox=el("div",{style:"display:flex;flex-direction:column"});
   if(hOd>H0) osPelnaBox.append(pasek(H0,hOd-1,"gora"));
   osPelnaBox.append(axis);
@@ -1261,7 +1355,7 @@ function vDzis(){
   if(S.osPelna) osPelnaBox.append(el("div",{class:"row"},
     el("button",{class:"ghost",onclick:()=>{S.osPelna=false;render()}},"zwiń puste godziny")));
 
-  const secBloki=sec("Bloki",osPelnaBox,
+  const secBloki=sec("Bloki",osPelnaBox, edytowany ? edytorBloku() : null,
     el("div",{class:"row"},
       el("button",{class:"btn",onclick:()=>saveDay(d,{blocks:[...D.blocks,
         {id:uid(),s:"09:00",e:"10:30",area:"T",txt:"",done:false}]})},"Dodaj blok"),
@@ -1271,7 +1365,8 @@ function vDzis(){
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
       +"Siatka ma podziałkę co 15 minut. Bloki, które się zazębiają, dzielą szerokość — "
       +"możesz położyć konsultację na długim bloku gabinetu. "
-      +"Kliknij w gotowy blok, gdy go zrobisz — wypełni się kolorem. "
+      +"Kliknij blok, żeby go otworzyć; przytrzymaj i przeciągnij, by przesunąć, "
+      +"a przy dolnej krawędzi — by zmienić długość. "
       +"Blok = 90–120 minut jednej rzeczy, najwyżej 2–3 dziennie."));
 
   /* prawa strona */
@@ -1353,7 +1448,8 @@ function vDzis(){
       "„Pranie ciemne” → zadanie · „12:30 Psychoterapia” → wydarzenie · "
       +"„jutro 9:00-11:00 Gabinet” → blok. Dzień: dziś / jutro / pon / 5.10 (kropka). "
       +"Godzina z dwukropkiem. Obszar: litera na początku, np. G - … albo #G. "
-      +"Średnik rozdziela kilka zadań. Kropka środkowa albo dwukropek oddziela projekt: Szydełko · Mollette."; return; }
+      +"Średnik rozdziela kilka zadań, kropka środkowa oddziela projekt: Szydełko · Mollette. "
+      +"Jeśli treść zaczyna się od litery obszaru, napisz ją dwa razy: K K mamą."; return; }
     const kt=rodzajWpisu(r), dd=parse(r.data);
     const ile = (kt==="zadanie" && r.czesci.length>1) ? (" ×"+r.czesci.length) : "";
     szPodg.textContent = {zadanie:"Zadanie", blok:"Blok", wydarzenie:"Wydarzenie w kalendarzu"}[kt] + ile
@@ -2478,7 +2574,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-115152";
+const VER = "20261005-115735";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
