@@ -250,6 +250,16 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .tb.siatka .lft{width:112px;white-space:nowrap;padding-right:8px;overflow:hidden;
   text-overflow:ellipsis;font-size:11.5px}
 .tb.siatka th{padding:0 0 3px;font-size:9px}
+.tb.ala{table-layout:auto;min-width:420px}
+.tb.ala .lft{width:auto;min-width:160px;white-space:normal;line-height:1.3;padding:3px 4px}
+.tb.ala .lft .ttxt{font-size:12px}
+.tb.ala th{min-width:26px}
+.tb.ala .alad{font-size:9px;color:var(--fg-3)}
+.ala{width:100%;min-width:24px;height:26px;border:0;background:transparent;cursor:pointer;
+  font-size:13px;color:var(--fg-3);line-height:1;border-radius:4px}
+.ala:hover{background:var(--pink-soft)}
+.ala.jest{font-weight:700;font-size:14px}
+.ala.byl{color:var(--fg-3);opacity:.75}
 .tb.siatka td{border-top:0;padding:1px}
 .tb.siatka th.wk,.tb.siatka td.wk{background:var(--paper-2)}
 .cell.kw{width:100%;min-width:0;height:auto;aspect-ratio:1;border:1px solid var(--line);border-radius:3px;
@@ -732,6 +742,15 @@ const czasSlownie = s => {
 let tykanie = null;
 const saveDay = (d,p)=>{ zapamietajCofke("days/"+d, S.day[d] ? dayDoc(d) : null);
   S.day[d]={...dayDoc(d),...p}; save("days/"+d, S.day[d]); render(); };
+/* dniówka dowolnego dnia z wczytanego miesiąca — bez tego zapis kasowałby cudzy dzień */
+const dayAny = d => ({date:d, type:"", must:"", tasks:[], blocks:[], journal:"", liczniki:{},
+  ...(S.day[d] || (S.mdays||{})[d] || {})});
+const saveDayAny = (d,p)=>{
+  const byl = S.day[d] || (S.mdays||{})[d];
+  zapamietajCofke("days/"+d, byl ? dayAny(d) : null);
+  S.day[d] = {...dayAny(d), ...p};
+  if(S.mdays) S.mdays[d] = S.day[d];
+  save("days/"+d, S.day[d]); render(); };
 const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, eksperyment:"", eksperymentWynik:"", ...(S.week[w]||{})});
 const saveWeek= (w,p)=>{ zapamietajCofke("weeks/"+w, S.week[w] ? weekDoc(w) : null);
   S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
@@ -1990,6 +2009,107 @@ function vTydzien(){
       el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums"},tasks.length?done+"/"+tasks.length:"")));
   });
 
+  /* --- lista zadań całego tygodnia, metoda Alastaira --- */
+  const pula = Array.isArray(W.pula) ? W.pula : [];
+  const wiersze = [];
+  pula.forEach(z=>wiersze.push({t:z, gdzie:"pula"}));
+  days.forEach(ds=>(dayAny(ds).tasks||[]).forEach(z=>wiersze.push({t:z, gdzie:ds})));
+
+  const przypisz = (z, zrodlo, cel)=>{
+    if(zrodlo === cel) return;
+    const hist = [...(z.hist||[])];
+    if(zrodlo !== "pula" && !hist.includes(zrodlo)) hist.push(zrodlo);
+    const nowy = {...z, hist};
+    if(zrodlo === "pula") saveWeek(w,{pula: (weekDoc(w).pula||[]).filter(x=>x.id!==z.id)});
+    else saveDayAny(zrodlo, {tasks:(dayAny(zrodlo).tasks||[]).filter(x=>x.id!==z.id)});
+    if(cel === "pula") saveWeek(w,{pula:[...(weekDoc(w).pula||[]).filter(x=>x.id!==z.id), nowy]});
+    else saveDayAny(cel, {tasks:[...(dayAny(cel).tasks||[]), nowy]});
+  };
+  const zmien = (z, gdzie, p)=>{
+    if(gdzie === "pula")
+      saveWeek(w,{pula:(weekDoc(w).pula||[]).map(x=>x.id===z.id?{...x,...p}:x)});
+    else saveDayAny(gdzie, {tasks:(dayAny(gdzie).tasks||[]).map(x=>x.id===z.id?{...x,...p}:x)});
+  };
+  const usun = (z, gdzie)=>{
+    if(gdzie === "pula") saveWeek(w,{pula:(weekDoc(w).pula||[]).filter(x=>x.id!==z.id)});
+    else saveDayAny(gdzie, {tasks:(dayAny(gdzie).tasks||[]).filter(x=>x.id!==z.id)});
+  };
+
+  const secAla = sec("Zadania tygodnia");
+  const tbA = el("table",{class:"tb ala"});
+  const hrA = el("tr",{},el("th",{class:"lft"},"zadanie"));
+  days.forEach(ds=>{
+    const ile = (dayAny(ds).tasks||[]).filter(x=>x.st!=="done").length;
+    hrA.append(el("th",{title:DOW[dowIdx(ds)]+" "+parse(ds).getDate()+" — "+ile+" otwartych"},
+      DOW[dowIdx(ds)], el("div",{class:"alad"}, String(parse(ds).getDate()))));
+  });
+  hrA.append(el("th",{style:"width:26px"},""));
+  tbA.append(el("thead",{},hrA));
+  const tbA2 = el("tbody");
+  if(!wiersze.length) tbA2.append(el("tr",{},el("td",{class:"lft",colspan:"9"},
+    el("span",{class:"note"},"Pusto. Dopisz zadanie — wyląduje w puli, bez dnia."))));
+  wiersze.forEach(({t:z, gdzie})=>{
+    const ob = AREAS[z.area] || AREAS.K;
+    const lewa = el("td",{class:"lft"},
+      el("button",{class:"mark",style:"color:"+ob.c,title:"Obszar: "+ob.n,
+        onclick:()=>{ const ks=Object.keys(AREAS);
+          zmien(z, gdzie, {area:ks[(ks.indexOf(z.area||"K")+1)%ks.length]}); }}, "■"),
+      el("button",{class:"ttxt",style:"text-align:left"+(z.st==="done"?";opacity:.5;text-decoration:line-through":""),
+        title:"Kliknij, by poprawić treść",
+        onclick:(ev)=>{
+          const sp=ev.currentTarget;
+          const i=el("input",{type:"text",value:duza(z.txt)});
+          i.addEventListener("blur",()=>zmien(z,gdzie,{txt:duza(i.value)||z.txt}));
+          i.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();i.blur()}});
+          sp.replaceWith(i); i.focus(); i.select();
+        }}, duza(z.txt)+(z.proj?" · "+duza(z.proj):"")));
+    const tr = el("tr",{}, lewa);
+    days.forEach(ds=>{
+      const tu = (gdzie === ds);
+      const bylo = (z.hist||[]).includes(ds);
+      const znak = tu ? (STMARK[z.st]||"•") : (bylo ? ">" : "·");
+      const kom = el("button",{class:"ala"+(tu?" jest":"")+(bylo&&!tu?" byl":""),
+        style: tu ? "color:"+ob.c : "",
+        title: tu ? (duza(z.txt)+" — "+(STNAME[z.st]||"zadanie")+", kliknij: zrobione; przytrzymaj: do puli")
+                  : (bylo ? "Było zaplanowane na ten dzień — przeniesione" : "Przypisz na ten dzień"),
+        onclick:()=>{
+          if(Date.now()-ostatnieDlugie < 600) return;
+          if(tu) zmien(z, gdzie, {st: z.st==="done" ? "todo" : "done"});
+          else przypisz(z, gdzie, ds);
+        }}, znak);
+      if(tu) przytrzymanie(kom, ()=>przypisz(z, gdzie, "pula"));
+      tr.append(el("td",{},kom));
+    });
+    tr.append(el("td",{},el("button",{class:"ala",title:"Usuń zadanie",
+      onclick:()=>{ if(confirm("Usunąć „"+duza(z.txt)+"”?")) usun(z, gdzie); }},"✕")));
+    tbA2.append(tr);
+  });
+  tbA.append(tbA2);
+  secAla.append(el("div",{class:"scrollx"}, tbA));
+  const noweA = el("input",{type:"text",placeholder:"Nowe zadanie tygodnia…"});
+  let obA = "K";
+  const dodajA = ()=>{
+    const v = duza(noweA.value); if(!v) return;
+    saveWeek(w,{pula:[...(weekDoc(w).pula||[]), {id:uid(), txt:v, st:"todo", area:obA, minor:false}]});
+    noweA.value = "";
+  };
+  noweA.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); dodajA(); } });
+  const obRz = el("div",{class:"row",style:"gap:3px"});
+  Object.entries(AREAS).forEach(([k,v])=>{
+    const b = el("button",{class:"btn icon"+(obA===k?" on":""),title:v.n,
+      style:obA===k?"":("color:"+v.c), onclick:()=>{ obA=k;
+        [...obRz.children].forEach(c=>c.classList.remove("on"));
+        b.classList.add("on"); }}, k);
+    obRz.append(b);
+  });
+  secAla.append(noweA, el("div",{class:"row"}, obRz,
+    el("button",{class:"btn",onclick:dodajA},"Dodaj")));
+  secAla.append(el("p",{class:"note"},
+    "Pełna lista tygodnia: pula na górze, pod nią zadania rozpisane na dni. "
+    +"Kliknięcie w kratkę dnia przypisuje zadanie do tego dnia, kliknięcie w jego własną kratkę "
+    +"oznacza zrobione, przytrzymanie odkłada z powrotem do puli. "
+    +"Dzień, z którego zadanie uciekło, zostaje ze znakiem „>” — po tygodniu widać, co się przesuwa."));
+
   const grupyDomu = [];
   HOME.forEach(h=>{ const g=h[2]||"Dom"; if(!grupyDomu.includes(g)) grupyDomu.push(g); });
   const sekcjeDomu = grupyDomu.map(grupa=>{
@@ -2128,7 +2248,7 @@ function vTydzien(){
   pp.append(el("p",{class:"note"},
     "Dzień znika z listy, gdy oznaczysz go jako przepisany. Zmiana w dniówce go nie przywraca."));
 
-  return {L:[dl,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
+  return {L:[dl,secAla,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -3165,7 +3285,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-160113";
+const VER = "20261006-161721";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
