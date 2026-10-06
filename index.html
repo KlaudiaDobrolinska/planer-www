@@ -1342,6 +1342,12 @@ function vDzis(){
       el("button",{class:"ghost",title:t.note?"Notatka":"Dodaj notatkę",
         onclick:()=>{ S.notatka = (S.notatka===t.id ? null : t.id); render(); }},
         t.note?"≡":"+≡"),
+      el("button",{class:"ghost",title:"Zrób z tego blok na osi",
+        onclick:()=>{
+          const g = wolnySlot(D.blocks, 90);
+          saveDay(d,{blocks:[...D.blocks,{id:uid(), s:g.s, e:g.e, area:t.area||"K",
+            txt:duza(t.txt), proj:t.proj||"", opis:t.note||"", done:false, zZadania:t.id}]});
+        }},"▭"),
       el("button",{class:"ghost",title:"Wyżej",onclick:()=>move(t.id,-1)},"⌃"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{tasks:D.tasks.filter(x=>x.id!==t.id)})},"✕")));
     przytrzymanie(r, ()=>{ S.przenies = t.id; S.projekt=null; S.notatka=null; S.znak=null; render(); });
@@ -1673,6 +1679,11 @@ function vDzis(){
       el("div",{class:"row"},
         el("button",{class:"btn"+(b.done?" on":""),onclick:()=>saveDay(d,
           {blocks:D.blocks.map(x=>x.id===b.id?{...x,done:!x.done}:x)})}, b.done?"✓ Zrobione":"Oznacz jako zrobione"),
+        el("button",{class:"ghost",title:"Dopisz ten blok jako zadanie",onclick:()=>{
+          saveDay(d,{tasks:[...D.tasks,{id:uid(), txt:duza(b.txt||(AREAS[b.area]||AREAS.K).n),
+            st:"todo", area:b.area||"K", proj:b.proj||"", note:b.opis||"", minor:false}]});
+          S.blokEdyt=null;
+        }},"zrób zadanie"),
         el("button",{class:"ghost",onclick:()=>{S.blokEdyt=null;render()}},"zamknij"),
         el("button",{class:"ghost",onclick:()=>{
           if(!confirm("Usunąć blok „"+(b.txt||"")+"”?")) return;
@@ -1705,6 +1716,8 @@ function vDzis(){
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
       +"Siatka ma podziałkę co 15 minut. Bloki, które się zazębiają, dzielą szerokość — "
       +"możesz położyć konsultację na długim bloku gabinetu. "
+      +"Przycisk ▭ przy zadaniu robi z niego blok w pierwszej wolnej szparze — zadanie zostaje na liście, "
+      +"więc skasowany blok nic nie zabiera. W edytorze bloku „zrób zadanie” działa w drugą stronę. "
       +"Wydarzenia z Kalendarza Google wchodzą na oś same. Jeśli w nazwie albo w miejscu "
       +"nie ma „online” (ani linku), dokładam przed i po pas "+DOJAZD+" minut na drogę. "
       +"Przytrzymaj blok, żeby go otworzyć do edycji. Otwarty blok przeciągniesz palcem: "
@@ -2604,6 +2617,23 @@ function edytorKotwic(box){
     "Kotwica dopisuje się pod kreską — dziś i w przyszłych dniach, nigdy wstecz. "
     +"Skasowana z dnia nie wraca."));
 }
+/* pierwsza wolna szpara w dniu, domyślnie 90 minut; omija istniejące bloki */
+function wolnySlot(blocks, dlug){
+  const dl = dlug || 90;
+  const zajete = (blocks||[]).map(b=>[naMin(b.s), naMin(b.e)]).sort((a,b)=>a[0]-b[0]);
+  const teraz = new Date();
+  const dzisiaj = key(teraz);
+  let start = 8*60;
+  if(S.date === dzisiaj){                       // dziś zaczynamy od najbliższego kwadransa
+    const m = teraz.getHours()*60 + teraz.getMinutes();
+    start = Math.max(start, Math.ceil(m/15)*15);
+  }
+  for(let p = start; p + dl <= 22*60; p += 15){
+    const kolizja = zajete.some(([a,b]) => p < b && a < p+dl);
+    if(!kolizja) return {s:naCzas(p), e:naCzas(p+dl)};
+  }
+  return {s:naCzas(20*60), e:naCzas(20*60+dl)};
+}
 /* podróż obejmująca dany dzień: {p, nr, ile} albo null */
 function podrozNa(ds){
   const p = (PODROZE||[]).find(x=>x.od && x.do && ds>=x.od && ds<=x.do);
@@ -3135,7 +3165,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-113257";
+const VER = "20261006-160113";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
