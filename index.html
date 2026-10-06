@@ -1227,12 +1227,21 @@ async function calDel(id){
   }catch(e){ S.cal.msg = e.message || CALERR[e.code] || "Nie udało się usunąć."; render(); }
 }
 function calRow(e, d){
-  return el("button",{class:"task",onclick:async()=>{
-      if(!await calEnsure()) return;
-      calEdit = calFields(e.raw); calEdit.date = d; S.cal.msg = null; render(); }},
-    el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums;"
-      +"min-width:48px;display:inline-block"}, e.t || "cały dzień"),
-    el("span",{}, e.s));
+  const juz = dayAny(d).tasks.some(x=>x.gcal === e.id);
+  const dopisz = el("button",{class:"ghost",disabled:juz,
+    title: juz ? "Jest już na liście zadań" : "Dopisz jako zadanie dnia"}, juz ? "✓" : "+ zadanie");
+  dopisz.addEventListener("click", ev=>{ ev.stopPropagation(); zadanieZKal(e, d); });
+  const wiersz = el("div",{class:"task",style:"gap:6px;flex-wrap:nowrap"},
+    el("button",{class:"ttxt",style:"text-align:left;display:flex;gap:8px",
+      title:"Kliknij, by otworzyć wpis w kalendarzu",
+      onclick:async()=>{
+        if(!await calEnsure()) return;
+        calEdit = calFields(e.raw); calEdit.date = d; S.cal.msg = null; render(); }},
+      el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums;"
+        +"min-width:48px;display:inline-block"}, e.t || "cały dzień"),
+      el("span",{}, e.s)),
+    dopisz);
+  return wiersz;
 }
 function calForm(box, d){
   const f = calEdit;
@@ -1399,12 +1408,9 @@ function vDzis(){
       el("button",{class:"ghost",title:t.note?"Notatka":"Dodaj notatkę",
         onclick:()=>{ S.notatka = (S.notatka===t.id ? null : t.id); render(); }},
         t.note?"≡":"+≡"),
-      el("button",{class:"ghost",title:"Zrób z tego blok na osi",
-        onclick:()=>{
-          const g = wolnySlot(D.blocks, 90);
-          saveDay(d,{blocks:[...D.blocks,{id:uid(), s:g.s, e:g.e, area:t.area||"K",
-            txt:duza(t.txt), proj:t.proj||"", opis:t.note||"", done:false, zZadania:t.id}]});
-        }},"▭"),
+      el("button",{class:"ghost",
+        title: t.od ? ("Zrób blok "+t.od+"–"+t.doo+(t.online?"":" plus dojazd")) : "Zrób z tego blok na osi",
+        onclick:()=>blokZZadania(d, t)},"▭"),
       el("button",{class:"ghost",title:"Wyżej",onclick:()=>move(t.id,-1)},"⌃"),
       el("button",{class:"ghost",title:"Usuń",onclick:()=>saveDay(d,{tasks:D.tasks.filter(x=>x.id!==t.id)})},"✕")));
     przytrzymanie(r, ()=>{ S.przenies = t.id; S.projekt=null; S.notatka=null; S.znak=null; render(); });
@@ -1538,26 +1544,13 @@ function vDzis(){
     zamknij();
     return mapa;
   };
-  /* wydarzenia z kalendarza wchodzą na oś; te poza domem zabierają też czas na drogę */
-  const naOsi = [];
-  calFor(d).forEach(e=>{
-    if(e.allDay || !e.st || !e.en || e.st.slice(0,10)!==d) return;
-    const s = naMin(e.st.slice(11,16));
-    const k = e.en.slice(0,10)===d ? naMin(e.en.slice(11,16)) : 1439;
-    if(k<=s) return;
-    const online = ONLINE.test((e.s||"")+" "+((e.raw&&e.raw.location)||""));
-    naOsi.push({id:"kal-"+e.id, s:naCzas(s), e:naCzas(k), txt:e.s, online, kal:true});
-    if(online) return;
-    if(s-DOJAZD >= 0)    naOsi.push({id:"dja-"+e.id, s:naCzas(s-DOJAZD), e:naCzas(s), txt:"Dojazd"});
-    if(k+DOJAZD <= 1439) naOsi.push({id:"djb-"+e.id, s:naCzas(k), e:naCzas(k+DOJAZD), txt:"Powrót"});
-  });
-  const uklad = ukladBlokow([...D.blocks, ...naOsi]);
+  const uklad = ukladBlokow(D.blocks);
 
   /* puste godziny nocne zwijamy, ale nigdy nie chowamy bloku */
   let hOd=H0, hDo=H1;
   if(!S.osPelna){
     let od=6, doo=22;
-    [...D.blocks, ...naOsi].forEach(b=>{
+    D.blocks.forEach(b=>{
       const s=+b.s.slice(0,2);
       const e=+b.e.slice(0,2)+((+b.e.slice(3))>0?1:0);
       if(s<od) od=s;
@@ -1584,7 +1577,7 @@ function vDzis(){
           const opis=[duza(b.txt)||duza((AREAS[b.area]||AREAS.K).n), duza(b.proj)].filter(Boolean).join(" · ");
           const u = uklad[b.id] || {col:0, n:1};
           const szer = 100/u.n, lewo = u.col*szer;
-          cell.append(el("div",{class:"blk"+(b.done?" done":"")+(u.n>1?" waski":""),
+          cell.append(el("div",{class:"blk"+(b.done?" done":"")+(u.n>1?" waski":"")+(b.dojazd?" dojazd":""),
             title:(b.done?"Zrobione":"Kliknij, gdy zrobione")+" · "+b.s+"–"+b.e
               +(u.n>1?" · "+(u.col+1)+" z "+u.n+" równolegle":""),
             style:"top:"+((s-pocz)*4*KW)+"px;height:"
@@ -1662,21 +1655,6 @@ function vDzis(){
           kafel.addEventListener("pointerup",puszczenie);
           kafel.addEventListener("pointercancel",()=>{ koniecChwytu(); chwyt=null; render(); });
         }
-      });
-      naOsi.forEach(x=>{
-        const s = naMin(x.s)/60, k = naMin(x.e)/60;
-        if(!(s>=pocz && s<pocz+0.25)) return;
-        const u = uklad[x.id] || {col:0, n:1};
-        const szer = 100/u.n, lewo = u.col*szer;
-        cell.append(el("div",{class:"blk "+(x.kal?"kal":"dojazd")+(u.n>1?" waski":""),
-          title: x.kal
-            ? ("Kalendarz Google · "+x.s+"–"+x.e+(x.online?" · online, bez dojazdu":" · plus "+DOJAZD+" min drogi w każdą stronę"))
-            : (x.txt+" · "+x.s+"–"+x.e+" · "+DOJAZD+" minut na drogę"),
-          style:"top:"+((s-pocz)*4*KW)+"px;height:"
-            +Math.max(10,(Math.max(.25,Math.min(k,H1+1)-s)*4*KW-2))+"px;"
-            +"left:calc("+lewo+"% + 3px);width:calc("+szer+"% - 6px);right:auto",
-          onclick:(ev)=>{ ev.stopPropagation(); }},
-          el("span",{}, x.kal ? duza(x.txt) : "⇢ "+x.txt)));
       });
     }
   }
@@ -1773,10 +1751,12 @@ function vDzis(){
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
       +"Siatka ma podziałkę co 15 minut. Bloki, które się zazębiają, dzielą szerokość — "
       +"możesz położyć konsultację na długim bloku gabinetu. "
-      +"Przycisk ▭ przy zadaniu robi z niego blok w pierwszej wolnej szparze — zadanie zostaje na liście, "
-      +"więc skasowany blok nic nie zabiera. W edytorze bloku „zrób zadanie” działa w drugą stronę. "
-      +"Wydarzenia z Kalendarza Google wchodzą na oś same. Jeśli w nazwie albo w miejscu "
-      +"nie ma „online” (ani linku), dokładam przed i po pas "+DOJAZD+" minut na drogę. "
+      +"Na osi stoją tylko Twoje bloki. Wpis z Kalendarza Google najpierw dopisujesz jako zadanie "
+      +"(przycisk „+ zadanie” przy wydarzeniu), a dopiero z zadania robisz blok przyciskiem ▭. "
+      +"Blok z wydarzenia bierze jego godziny, a jeśli w nazwie ani w miejscu nie ma „online” "
+      +"(ani linku), dokładam przed i po pas "+DOJAZD+" minut na drogę. "
+      +"Zadanie zostaje na liście, więc skasowany blok nic nie zabiera; "
+      +"w edytorze bloku „zrób zadanie” działa w drugą stronę. "
       +"Przytrzymaj blok, żeby go otworzyć do edycji. Otwarty blok przeciągniesz palcem: "
       +"w pionie przesuwasz, przy dolnej krawędzi zmieniasz długość. "
       +"Blok = 90–120 minut jednej rzeczy, najwyżej 2–3 dziennie."));
@@ -2838,6 +2818,37 @@ function wolnySlot(blocks, dlug){
   }
   return {s:naCzas(20*60), e:naCzas(20*60+dl)};
 }
+/* wydarzenie z Kalendarza Google → zadanie dnia (blok robisz potem z zadania) */
+function zadanieZKal(e, d){
+  const D = dayAny(d);
+  if(D.tasks.some(x=>x.gcal === e.id)) return false;
+  const online = ONLINE.test((e.s||"") + " " + ((e.raw && e.raw.location) || ""));
+  const z = {id:uid(), txt:duza(e.s), st:"event", area:"K", minor:false, gcal:e.id, online};
+  if(e.st){
+    const od = e.st.slice(11,16);
+    const doo = (e.en && e.en.slice(0,10) === d) ? e.en.slice(11,16) : naCzas(naMin(od)+60);
+    z.txt = duza(od + " " + e.s); z.od = od; z.doo = doo;
+  }
+  saveDayAny(d, {tasks:[...D.tasks, z]});
+  return true;
+}
+/* zadanie → blok na osi. Z godziną wydarzenia, jeśli ją ma; poza domem dokładamy drogę */
+function blokZZadania(d, z){
+  const D = dayAny(d);
+  const ma = z.od && z.doo && naMin(z.doo) > naMin(z.od);
+  const g = ma ? {s:z.od, e:z.doo} : wolnySlot(D.blocks, 90);
+  const nazwa = duza(String(z.txt||"").replace(/^\d{1,2}:\d{2}\s*/, ""));
+  const nowe = [{id:uid(), s:g.s, e:g.e, area:z.area||"K", txt:nazwa, proj:z.proj||"",
+                 opis:z.note||"", done:false, zZadania:z.id}];
+  if(ma && !z.online){
+    const s = naMin(g.s), e = naMin(g.e);
+    if(s - DOJAZD >= 0)    nowe.push({id:uid(), s:naCzas(s-DOJAZD), e:g.s,
+      area:z.area||"K", txt:"Dojazd", dojazd:true, done:false});
+    if(e + DOJAZD <= 1439) nowe.push({id:uid(), s:g.e, e:naCzas(e+DOJAZD),
+      area:z.area||"K", txt:"Powrót", dojazd:true, done:false});
+  }
+  saveDayAny(d, {blocks:[...D.blocks, ...nowe]});
+}
 /* podróż obejmująca dany dzień: {p, nr, ile} albo null */
 function podrozNa(ds){
   const p = (PODROZE||[]).find(x=>x.od && x.do && ds>=x.od && ds<=x.do);
@@ -3369,7 +3380,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-163102";
+const VER = "20261006-173449";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
