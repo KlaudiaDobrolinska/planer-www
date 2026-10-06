@@ -1,5 +1,5 @@
-// Pozwala otworzyc planer bez internetu. Wersja: 20261006-173748
-const WERSJA = "20261006-173748";
+// Pozwala otworzyc planer bez internetu. Wersja: 20261006-174301
+const WERSJA = "20261006-174301";
 const SKRZYNIA = "planer-" + WERSJA;
 const SZKIELET = ["./", "./index.html", "./manifest.webmanifest",
                   "./ikona-180.png", "./ikona-192.png", "./ikona-512.png"];

@@ -30,7 +30,7 @@ img{max-width:100%}
   --pink:#bd7f90; --pink-2:#a86a7c; --pink-soft:#f7e9ec;
   --ink:#4a6a5b; --dziennik:#6b5a6e;
   /* Staedtler Triplus — odczytane z wzornika Klaudii */
-  --s:#81559c; --g:#5c94b7; --t:#c53501; --z:#44251b; --o:#5a6016; --r:#9f2b37;
+  --s:#81559c; --g:#5c94b7; --t:#c53501; --z:#9f2b37; --o:#5a6016; --r:#9f2b37;
   --d:#fa970b; --j:#006c59;        /* 16 Golden Ochre, 38 Sea Green */
   --nawyk:#985e7d;                 /* 26 Antique Pink */
   --sc5:#148a72; --sc4:#68742a; --sc3:#cf9420; --sc2:#c85f20; --sc1:#b8283a;
@@ -45,7 +45,7 @@ img{max-width:100%}
   --line:#3a3335; --line-2:#322c2e;
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
-  --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#8b7872; --o:#999c6f; --r:#c37c83;
+  --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#cf8188; --o:#999c6f; --r:#c37c83;
   --d:#fcbe68; --j:#61a498; --nawyk:#bf9bae;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
@@ -57,7 +57,7 @@ img{max-width:100%}
   --line:#3a3335; --line-2:#322c2e;
   --pink:#d395a5; --pink-2:#e3adba; --pink-soft:#3a2b30;
   --ink:#9ec0ac; --dziennik:#c9b0cc;
-  --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#8b7872; --o:#999c6f; --r:#c37c83;
+  --s:#b196c2; --g:#9abdd2; --t:#db8262; --z:#cf8188; --o:#999c6f; --r:#c37c83;
   --d:#fcbe68; --j:#61a498; --nawyk:#bf9bae;
   --sc5:#2bb394; --sc4:#9aa84a; --sc3:#e0b44a; --sc2:#ec8c4e; --sc1:#e2616f;
   color-scheme:dark;
@@ -495,7 +495,7 @@ const AREAS = {
   T:{n:"twórczość",  c:"var(--t)", nr:"73"},
   D:{n:"dom",        c:"var(--d)", nr:"16"},
   J:{n:"Julia",      c:"var(--j)", nr:"38"},
-  K:{n:"Klaudia",    c:"var(--z)", nr:"77"},
+  K:{n:"Klaudia",    c:"var(--z)", nr:"29"},
   O:{n:"odpoczynek", c:"var(--o)", nr:"57"}
 };
 /* Typ dnia odpowiada na jedno pytanie: ile dziś wchodzi mojego czasu.
@@ -3380,7 +3380,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-173748";
+const VER = "20261006-174301";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
