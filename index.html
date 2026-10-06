@@ -576,9 +576,8 @@ const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
 const PODROZE = [];            // {id, od:"2026-11-10", do:"2026-11-13", txt:"Wyjazd", area:"K"}
 const SZABLONY = [];           // {nazwa, typ, tasks:[...], blocks:[...]}
 const KOTWICE = [                       // zadania, które pojawiają się same
-  {dni:[1,2,3,4,5,6,7], txt:"Leki",                 area:"K"},
-  {dni:[1],             txt:"Lek tygodniowy",       area:"K"},
-  {dni:[6],             txt:"Suplementy na tydzień",area:"K"}
+  /* Leki i lek tygodniowy śledzimy w trackerze Zdrowie, nie w zadaniach. */
+  {dni:[6],             txt:"Naszykować suplementy na tydzień", area:"K"}
 ];
 const HOME = [
   ["prk","Pranie kolorowe","Dom"], ["prc","Pranie czarne","Dom"],
@@ -2799,7 +2798,8 @@ function edytorKotwic(box){
     }},"przywróć fabryczne")));
   box.append(el("p",{class:"note"},
     "Kotwica dopisuje się pod kreską — dziś i w przyszłych dniach, nigdy wstecz. "
-    +"Skasowana z dnia nie wraca."));
+    +"Skasowana z dnia nie wraca. Rzeczy, które i tak odhaczasz w trackerze Zdrowie "
+    +"(leki, suplementy, woda), nie powinny tu być drugi raz."));
 }
 /* pierwsza wolna szpara w dniu, domyślnie 90 minut; omija istniejące bloki */
 function wolnySlot(blocks, dlug){
@@ -3380,7 +3380,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-174301";
+const VER = "20261006-174800";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
