@@ -724,6 +724,43 @@ const uid = ()=>Math.random().toString(36).slice(2,9);
 const naMin  = h => (+h.slice(0,2))*60 + (+h.slice(3));
 const naCzas = m => { const x=Math.max(0,Math.min(1439,Math.round(m)));
   return pad(Math.floor(x/60))+":"+pad(x%60); };
+/* godzina wpisana z ręki: 9, 930, 9:30, 9.30, 0930 — zawsze wychodzi HH:MM */
+const naGodzine = (txt, zapas) => {
+  const s = String(txt==null?"":txt).trim().replace(/[.,;\-]/g,":").replace(/\s+/g,"");
+  if(!s) return zapas;
+  let g=null, m=0, x;
+  if(x = s.match(/^(\d{1,2}):(\d{1,2})$/)){ g=+x[1]; m=+x[2]; }
+  else if(/^\d{1,2}$/.test(s)){ g=+s; m=0; }
+  else if(/^\d{3}$/.test(s)){ g=+s.slice(0,1); m=+s.slice(1); }
+  else if(/^\d{4}$/.test(s)){ g=+s.slice(0,2); m=+s.slice(2); }
+  else return zapas;
+  if(g===24 && m===0){ g=0; }
+  if(g<0 || g>23 || m<0 || m>59) return zapas;
+  return pad(g)+":"+pad(m);
+};
+/* koniec nie może wypaść przed początkiem: ruszony start przesuwa cały blok */
+const paraPor = (b, s, e, ruszony) => {
+  let ms = naMin(s), me = naMin(e);
+  const dl = Math.max(15, naMin(b.e) - naMin(b.s));
+  if(me <= ms){
+    me = Math.min(1439, ms + (ruszony==="start" ? dl : 15));
+    if(me <= ms) ms = Math.max(0, me - 15);
+  }
+  return {s:naCzas(ms), e:naCzas(me)};
+};
+const poleCzasu = (wartosc) => {
+  const i = el("input",{type:"text",class:"tin",value:wartosc,placeholder:"00:00",
+    inputmode:"numeric",autocomplete:"off",spellcheck:"false",maxlength:"5",
+    title:"Wpisz godzinę z ręki: 9, 930, 9:30"});
+  i.dataset.czas = wartosc;
+  i.addEventListener("focus", ()=>setTimeout(()=>i.select(),0));
+  i.addEventListener("change", ()=>{                 // biegnie przed zapisem bloku
+    const v = naGodzine(i.value, i.dataset.czas);
+    i.value = v; i.dataset.czas = v;
+  });
+  i.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); i.blur(); } });
+  return i;
+};
 const duza = s => {                 // wielka pierwsza LITERA, nawet gdy wpis zaczyna się od godziny
   const v = (s||"").trim();
   if(!v) return v;
@@ -1537,13 +1574,17 @@ function vDzis(){
   }
   const bl=el("div",{class:"tasks",style:"margin-top:7px"});
   D.blocks.forEach(b=>{
-    const t1=el("input",{type:"time",value:b.s,class:"tin"});
-    const t2=el("input",{type:"time",value:b.e,class:"tin"});
+    const t1=poleCzasu(b.s);
+    const t2=poleCzasu(b.e);
     const tx=el("input",{type:"text",value:duza(b.txt||""),placeholder:"Nazwa bloku"});
     const pr=el("input",{type:"text",value:duza(b.proj||""),list:"projekty",placeholder:"projekt — np. Mollette",
       style:"width:auto;flex:1 1 150px;min-width:0"});
-    const sv=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
-      ?{...x,s:t1.value,e:t2.value,txt:duza(tx.value),proj:duza(pr.value)}:x)});
+    const sv=()=>{
+      const g = paraPor(b, t1.value, t2.value, t1.value!==b.s ? "start" : "koniec");
+      t1.value=g.s; t2.value=g.e;
+      saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
+        ?{...x,s:g.s,e:g.e,txt:duza(tx.value),proj:duza(pr.value)}:x)});
+    };
     [t1,t2,tx,pr].forEach(i=>i.addEventListener("change",sv));
     bl.append(listaProjektow(), el("div",{class:"task blkrow"},
       el("button",{class:"mark",style:"color:"+(AREAS[b.area]||AREAS.K).c,title:"Obszar",
@@ -1560,12 +1601,16 @@ function vDzis(){
     const b = edytowany;
     const nz=el("input",{type:"text",value:duza(b.txt||""),placeholder:"Nazwa bloku"});
     const pr=el("input",{type:"text",value:duza(b.proj||""),list:"projekty",placeholder:"Projekt"});
-    const t1=el("input",{type:"time",class:"tin",value:b.s});
-    const t2=el("input",{type:"time",class:"tin",value:b.e});
+    const t1=poleCzasu(b.s);
+    const t2=poleCzasu(b.e);
     const op=el("textarea",{rows:3,placeholder:"Opis — co dokładnie, na czym się skupić"});
     op.value=b.opis||"";
-    const zap=()=>saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
-      ?{...x, txt:duza(nz.value), proj:duza(pr.value), s:t1.value, e:t2.value, opis:duza(op.value)}:x)});
+    const zap=()=>{
+      const g = paraPor(b, t1.value, t2.value, t1.value!==b.s ? "start" : "koniec");
+      t1.value=g.s; t2.value=g.e;
+      saveDay(d,{blocks:D.blocks.map(x=>x.id===b.id
+        ?{...x, txt:duza(nz.value), proj:duza(pr.value), s:g.s, e:g.e, opis:duza(op.value)}:x)});
+    };
     [nz,pr,t1,t2,op].forEach(i=>i.addEventListener("change",zap));
     const ob=el("div",{class:"row",style:"gap:3px"});
     Object.entries(AREAS).forEach(([k,v])=>ob.append(el("button",{class:"btn icon"+(b.area===k?" on":""),
@@ -1574,7 +1619,9 @@ function vDzis(){
       el("h3",{},"Blok · "+b.s+"–"+b.e),
       el("label",{class:"fld"},"Nazwa",nz),
       el("label",{class:"fld"},"Projekt",pr),
-      el("div",{class:"row"},el("span",{class:"note",style:"min-width:36px"},"Czas"),t1,t2),
+      el("div",{class:"row"},el("span",{class:"note",style:"min-width:36px"},"Czas"),t1,
+        el("span",{class:"note"},"–"),t2,
+        el("span",{class:"note",style:"flex:1 1 100%"},"Godzinę wpisujesz z ręki: 9, 930 albo 9:30.")),
       el("label",{class:"fld"},"Obszar",ob),
       el("label",{class:"fld"},"Opis",op),
       listaProjektow(),
@@ -2942,7 +2989,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261005-202731";
+const VER = "20261006-094237";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
