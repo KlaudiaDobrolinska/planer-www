@@ -295,6 +295,10 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .mcell:hover{background:var(--pink-soft)}
 .mcell.out{opacity:.35}
 .mcell.today{box-shadow:inset 0 0 0 2px var(--pink)}
+.mcell.wyjazd{background:color-mix(in srgb,var(--wyj) 9%,transparent);
+  box-shadow:inset 0 3px 0 -0.5px var(--wyj)}
+.mcell.wyjazd.today{box-shadow:inset 0 3px 0 -0.5px var(--wyj),inset 0 0 0 2px var(--pink)}
+.mcell .wyjnap{font-weight:600}
 .mcell .dn{font-size:11px;color:var(--fg-2);font-variant-numeric:tabular-nums;display:flex;gap:3px;align-items:center}
 .ev{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;display:inline-block}
@@ -477,6 +481,7 @@ function cfgZapamietajFabryczne(){
   FABR.KOTWICE = KOTWICE.map(k=>({...k, dni:[...k.dni]}));
   FABR.HOME = HOME.map(h=>[...h]);
   FABR.TERMINY = TERMINY.map(x=>({...x}));
+  FABR.PODROZE = PODROZE.map(x=>({...x}));
   FABR.SZABLONY = [];
 }
 function cfgZastosuj(c){
@@ -498,6 +503,8 @@ function cfgZastosuj(c){
   KOTWICE.length = 0; kt.forEach(x=>KOTWICE.push({...x, dni:[...(x.dni||[])]}));
   const tm = (c && c.terminy) ? c.terminy : FABR.TERMINY;
   TERMINY.length = 0; tm.forEach(x=>TERMINY.push({...x}));
+  const pd = (c && c.podroze) ? c.podroze : FABR.PODROZE;
+  PODROZE.length = 0; pd.forEach(x=>PODROZE.push({...x}));
   const sz = (c && c.szablony) ? c.szablony : FABR.SZABLONY;
   SZABLONY.length = 0; sz.forEach(x=>SZABLONY.push(JSON.parse(JSON.stringify(x))));
   const dm = (c && c.home && c.home.length) ? c.home : FABR.HOME;
@@ -509,6 +516,7 @@ function cfgZapisz(){
     habits:HABITS.map(h=>[...h]),
     kotwice:KOTWICE.map(k=>({...k, dni:[...k.dni]})),
     terminy:TERMINY.map(x=>({...x})),
+    podroze:PODROZE.map(x=>({...x})),
     szablony:JSON.parse(JSON.stringify(SZABLONY)),
     home:HOME.map(h=>[...h])});
 }
@@ -517,6 +525,7 @@ const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["In","Inktober"],
   ["Wc","Wcierka"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
+const PODROZE = [];            // {id, od:"2026-11-10", do:"2026-11-13", txt:"Wyjazd", area:"K"}
 const SZABLONY = [];           // {nazwa, typ, tasks:[...], blocks:[...]}
 const KOTWICE = [                       // zadania, które pojawiają się same
   {dni:[1,2,3,4,5,6,7], txt:"Leki",                 area:"K"},
@@ -1914,14 +1923,39 @@ function vDzis(){
     el("button",{class:"ghost",onclick:()=>{termEdyt.hidden=!termEdyt.hidden}},"edytuj terminy")),
     termEdyt);
 
+  /* --- podróże --- */
+  const wyj = podrozNa(d);
+  const secWyj = sec("Podróże");
+  if(wyj) secWyj.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:7px"},
+    el("span",{class:"mark",style:"color:"+((AREAS[wyj.p.area]||AREAS.K).c)},"■"),
+    el("span",{style:"flex:1 1 auto;min-width:0;font-weight:600"}, duza(wyj.p.txt||"Podróż")),
+    el("b",{style:"flex:0 0 auto;font-weight:600"}, "dzień "+wyj.nr+" z "+wyj.ile)));
+  const naj = (PODROZE||[]).filter(x=>x.od && x.od>dzisiaj)
+    .sort((a,b)=>a.od.localeCompare(b.od)).slice(0,3);
+  naj.forEach(x=>{
+    const ile = Math.round((parse(x.od)-parse(dzisiaj))/86400000);
+    secWyj.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:7px"},
+      el("span",{class:"mark",style:"color:"+((AREAS[x.area]||AREAS.K).c)},"■"),
+      el("span",{style:"flex:1 1 auto;min-width:0"}, duza(x.txt||"Podróż")),
+      el("b",{style:"flex:0 0 auto;font-weight:600;color:var(--fg-2)"},
+        ile===1 ? "jutro" : ("za "+ile+" dni"))));
+  });
+  if(!wyj && !naj.length) secWyj.append(el("p",{class:"note"},
+    "Brak zaplanowanych podróży. Zaznaczona podróż barwi dni w widoku miesiąca."));
+  const wyjEdyt=el("div",{hidden:true,style:"display:flex;flex-direction:column;gap:8px"});
+  edytorPodrozy(wyjEdyt);
+  secWyj.append(el("div",{class:"row"},
+    el("button",{class:"ghost",onclick:()=>{wyjEdyt.hidden=!wyjEdyt.hidden}},"edytuj podróże")),
+    wyjEdyt);
+
   const secKotw=sec("Kotwice");
   secKotw.append(el("p",{class:"note"},
     "Zadania, które dopisują się same w wybrane dni tygodnia."));
   edytorKotwic(secKotw);
 
   const mk=miniKalendarz(d);
-  const prawa = showCal ? [mk,secMust,secTyp,secSzab,secTerm,secKotw,secCal]
-                       : [mk,secMust,secTyp,secSzab,secTerm,secKotw];
+  const prawa = showCal ? [mk,secMust,secTyp,secSzab,secTerm,secWyj,secKotw,secCal]
+                       : [mk,secMust,secTyp,secSzab,secTerm,secWyj,secKotw];
   return {L:[secSzyb,secTasks,secBloki,secLicz,secDz], R:prawa};
 }
 
@@ -2095,9 +2129,15 @@ function vMiesiac(){
     const ds=addD(start,i), dt=parse(ds), out=dt.getMonth()!==m-1;
     if(i>=35&&out) break;
     const dd=S.mdays[ds]||{};
-    const c=el("button",{class:"mcell"+(out?" out":"")+(ds===today?" today":""),
+    const wyj=podrozNa(ds);
+    const c=el("button",{class:"mcell"+(out?" out":"")+(ds===today?" today":"")+(wyj?" wyjazd":""),
+      style: wyj ? "--wyj:"+((AREAS[wyj.p.area]||AREAS.K).c) : "",
+      title: wyj ? (duza(wyj.p.txt||"Podróż")+" — dzień "+wyj.nr+" z "+wyj.ile) : "",
       onclick:()=>{S.date=ds;S.view="dzis";S.month=ds.slice(0,7);resub();render()}});
     c.append(el("div",{class:"dn"},String(dt.getDate()),dd.type?el("span",{class:"chip"},dd.type):null));
+    if(wyj && (wyj.nr===1 || dowIdx(ds)===0 || dt.getDate()===1))
+      c.append(el("div",{class:"ev wyjnap",style:"color:"+((AREAS[wyj.p.area]||AREAS.K).c)},
+        "✈ "+duza(wyj.p.txt||"Podróż")));
     calFor(ds).slice(0,3).forEach(e=>c.append(el("div",{class:"ev",style:"color:var(--ink-2)"},
       (e.t?e.t+" ":"")+e.s)));
     if(dd.must) c.append(el("div",{class:"ev",style:"color:var(--t)"},duza(dd.must)));
@@ -2106,7 +2146,28 @@ function vMiesiac(){
   const s=sec(MONTHN[m-1]+" "+y,g);
   calNote(s);
   s.append(el("p",{class:"note"},"Terminy pochodzą z Kalendarza Google. Typ dnia i „musi się udać” — z dniówek."));
-  return {W:[s]};
+
+  const sp = sec("Podróże");
+  const wMies = (PODROZE||[]).filter(x=>x.od && x.do
+    && x.od.slice(0,7) <= S.month && x.do.slice(0,7) >= S.month)
+    .sort((a,b)=>a.od.localeCompare(b.od));
+  if(!wMies.length) sp.append(el("p",{class:"note"},
+    "W tym miesiącu nic. Dni podróży barwią się paskiem w kolorze obszaru."));
+  wMies.forEach(x=>{
+    const ile = Math.round((parse(x.do)-parse(x.od))/86400000)+1;
+    const od = parse(x.od), doo = parse(x.do);
+    const mn = i => (MONTHN[i]||"").toLowerCase();
+    const zakres = od.getDate()+(od.getMonth()===doo.getMonth()
+      ? "–"+doo.getDate()+" "+mn(doo.getMonth())
+      : " "+mn(od.getMonth())+" – "+doo.getDate()+" "+mn(doo.getMonth()));
+    sp.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:7px"},
+      el("span",{class:"mark",style:"color:"+((AREAS[x.area]||AREAS.K).c)},"■"),
+      el("span",{style:"flex:1 1 auto;min-width:0"}, duza(x.txt||"Podróż")),
+      el("span",{class:"note",style:"flex:0 0 auto"}, zakres),
+      el("b",{style:"flex:0 0 auto;font-weight:600"}, ile+" dni")));
+  });
+  edytorPodrozy(sp);
+  return {W:[s,sp]};
 }
 
 /* ---------- Trackery ---------- */
@@ -2542,6 +2603,53 @@ function edytorKotwic(box){
   box.append(el("p",{class:"note"},
     "Kotwica dopisuje się pod kreską — dziś i w przyszłych dniach, nigdy wstecz. "
     +"Skasowana z dnia nie wraca."));
+}
+/* podróż obejmująca dany dzień: {p, nr, ile} albo null */
+function podrozNa(ds){
+  const p = (PODROZE||[]).find(x=>x.od && x.do && ds>=x.od && ds<=x.do);
+  if(!p) return null;
+  const ile = Math.round((parse(p.do)-parse(p.od))/86400000) + 1;
+  const nr  = Math.round((parse(ds)-parse(p.od))/86400000) + 1;
+  return {p, nr, ile};
+}
+function edytorPodrozy(box){
+  PODROZE.slice().sort((a,b)=>(a.od||"").localeCompare(b.od||"")).forEach(x=>{
+    const i = PODROZE.indexOf(x);
+    const od = el("input",{type:"date",value:x.od||"",style:"width:auto;flex:0 0 146px"});
+    const dd = el("input",{type:"date",value:x.do||"",style:"width:auto;flex:0 0 146px"});
+    const tx = el("input",{type:"text",value:x.txt||"",placeholder:"Dokąd — np. Kraków, zjazd",
+      style:"width:auto;flex:1 1 150px;min-width:0"});
+    const ob = el("button",{class:"mark",style:"color:"+((AREAS[x.area]||AREAS.K).c),
+      title:"Obszar — kliknij, by zmienić"},"■");
+    ob.addEventListener("click",()=>{
+      const ks=Object.keys(AREAS);
+      PODROZE[i].area = ks[(ks.indexOf(x.area||"K")+1)%ks.length]; cfgZapisz(); render();
+    });
+    const zap = ()=>{
+      PODROZE[i].od = od.value;
+      PODROZE[i].do = (dd.value && dd.value >= od.value) ? dd.value : od.value;
+      PODROZE[i].txt = duza(tx.value); cfgZapisz(); render();
+    };
+    [od,dd,tx].forEach(e=>e.addEventListener("change",zap));
+    box.append(el("div",{class:"row"},ob,od,dd,tx,
+      el("button",{class:"ghost",title:"Usuń podróż",onclick:()=>{
+        if(!confirm("Usunąć podróż „"+(x.txt||"")+"”?")) return;
+        PODROZE.splice(i,1); cfgZapisz(); render();
+      }},"✕")));
+  });
+  const rok = S.date.slice(0,4);
+  const wRoku = (PODROZE||[]).filter(x=>(x.od||"").slice(0,4)===rok);
+  const dni = wRoku.reduce((s,x)=>s + (x.od&&x.do
+    ? Math.round((parse(x.do)-parse(x.od))/86400000)+1 : 0), 0);
+  box.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      const od = S.date;
+      PODROZE.push({id:uid(), od, do:addD(od,2), txt:"Nowa podróż", area:"K"});
+      cfgZapisz(); render();
+    }},"Dodaj podróż"),
+    el("span",{class:"note"}, rok+": "+wRoku.length+" "
+      +(wRoku.length===1?"podróż":(wRoku.length>=5||wRoku.length===0?"podróży":"podróże"))
+      +", "+dni+" dni")));
 }
 function edytorTerminow(box){
   TERMINY.slice().sort((a,b)=>(a.d||"").localeCompare(b.d||"")).forEach(x=>{
@@ -3027,7 +3135,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-094622";
+const VER = "20261006-113257";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
