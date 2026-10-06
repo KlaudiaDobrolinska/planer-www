@@ -797,7 +797,7 @@ const naMin  = h => (+h.slice(0,2))*60 + (+h.slice(3));
 const naCzas = m => { const x=Math.max(0,Math.min(1439,Math.round(m)));
   return pad(Math.floor(x/60))+":"+pad(x%60); };
 /* godzina wpisana z ręki: 9, 930, 9:30, 9.30, 0930 — zawsze wychodzi HH:MM */
-const DOJAZD = 15;                  // minut na drogę przed i po wydarzeniu poza domem
+const DOJAZD = 20;                  // minut na drogę przed i po wydarzeniu poza domem
 const ONLINE = /(online|on-?line|zdaln|wideo|video|telefon|tel\.|meet|zoom|teams|skype|whatsapp|https?:\/\/)/i;
 const naGodzine = (txt, zapas) => {
   const s = String(txt==null?"":txt).trim().replace(/[.,;\-]/g,":").replace(/\s+/g,"");
@@ -3380,7 +3380,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-173449";
+const VER = "20261006-173748";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
