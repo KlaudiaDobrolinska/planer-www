@@ -208,6 +208,9 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .blk.done{background:color-mix(in srgb,currentColor 24%,transparent)}
 .blk.done span{font-weight:600}
 .blk span{color:var(--fg)}
+.kolko{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+  flex:0 0 20px;border:1px solid var(--line);border-radius:50%;font-size:11px;font-weight:600;
+  color:var(--fg-2)}
 .blk.kal{color:var(--pink);background:color-mix(in srgb,var(--paper) 88%,transparent);cursor:default}
 .blk.kal span{font-weight:600}
 .blk.dojazd{border:1px dashed color-mix(in srgb,var(--ink-3) 55%,transparent);color:var(--ink-3);
@@ -501,15 +504,18 @@ const AREAS = {
 /* Typ dnia odpowiada na jedno pytanie: ile dziś wchodzi mojego czasu.
    Norma liczy bloki twórcze i naukowe — to one wypadają pierwsze. */
 const BLOKI_WLASNE = ["T","S"];
+/* Litera = pierwsza litera nazwy, każda inna — tak, żeby w B6 zmieścić ją w kółku przy dacie.
+   Klucze zostają stare, żeby dni zapisane wcześniej nie straciły typu. */
 const DAYTYPES = {
-  pelny:      {n:"Pełny",         o:"Dzień do mojej dyspozycji.",                         min:2, max:3},
-  praca:      {n:"Praca",         o:"Gabinet albo twórczość naukowa.",                    min:0, max:1},
-  nauka:      {n:"Nauka",         o:"Studia, zjazd, szkolenie.",                          min:1, max:2},
-  zajety:     {n:"Zajęty",        o:"Cudze sprawy: wizyty, dowożenie, wyjazd.",           min:0, max:0},
-  niska:      {n:"Niska energia", o:"Pierwsza rzecz z listy albo nic.",                   min:0, max:1},
-  odpoczynek: {n:"Odpoczynek",    o:"Świadomie wolne, bez wyrzutów.",                     min:0, max:0}
+  pelny:      {l:"W", n:"Wolny",         o:"Dzień do mojej dyspozycji.",               min:2, max:3},
+  praca:      {l:"P", n:"Praca",         o:"Gabinet albo twórczość naukowa.",          min:0, max:1},
+  nauka:      {l:"E", n:"Edukacja",      o:"Studia, zjazd, szkolenie.",                min:1, max:2},
+  zajety:     {l:"Z", n:"Zajęty",        o:"Cudze sprawy: wizyty, dowożenie, wyjazd.", min:0, max:0},
+  niska:      {l:"N", n:"Niska energia", o:"Pierwsza rzecz z listy albo nic.",         min:0, max:1},
+  odpoczynek: {l:"O", n:"Odpoczynek",    o:"Świadomie wolne, bez wyrzutów.",           min:0, max:0}
 };
-const nazwaTypu = k => (DAYTYPES[k] || {}).n || k;
+const nazwaTypu  = k => (DAYTYPES[k] || {}).n || k;
+const literaTypu = k => (DAYTYPES[k] || {}).l || (k ? k.slice(0,1).toUpperCase() : "");
 const normaTekst = k => { const d=DAYTYPES[k]; if(!d) return "";
   if(d.min===0 && d.max===0) return "bez bloków własnych";
   if(d.min===0 && d.max===1) return "najwyżej 1 blok";
@@ -1764,7 +1770,7 @@ function vDzis(){
   const types=el("div",{class:"row"});
   Object.entries(DAYTYPES).forEach(([k,v])=>types.append(el("button",{class:"btn"+(D.type===k?" on":""),
     title:v.o+" Norma: "+normaTekst(k)+".",
-    onclick:()=>saveDay(d,{type:D.type===k?"":k})}, v.n)));
+    onclick:()=>saveDay(d,{type:D.type===k?"":k})}, v.l+" · "+v.n)));
   const secTyp=sec("Typ dnia",types);
   if(D.type && DAYTYPES[D.type]){
     const def=DAYTYPES[D.type];
@@ -2021,7 +2027,7 @@ function vTydzien(){
     dl.append(el("button",{class:"task",style:"width:100%;text-align:left",
       onclick:()=>{S.date=ds;S.view="dzis";S.month=ds.slice(0,7);resub();render()}},
       el("span",{style:"width:56px;flex:0 0 56px;color:var(--ink-2)"},DOW[dowIdx(ds)]+" "+parse(ds).getDate()),
-      dd.type?el("span",{class:"chip",style:"flex:0 0 auto"},dd.type):el("span",{style:"width:20px;flex:0 0 20px"}),
+      dd.type?el("span",{class:"chip",style:"flex:0 0 auto",title:nazwaTypu(dd.type)},literaTypu(dd.type)):el("span",{style:"width:20px;flex:0 0 20px"}),
       el("span",{class:"ttxt",style:"color:var(--ink-2)"},duza(dd.must||ev||"—")),
       el("span",{style:"color:var(--ink-3);font-variant-numeric:tabular-nums"},tasks.length?done+"/"+tasks.length:"")));
   });
@@ -2276,7 +2282,7 @@ function vTydzien(){
     if(!ta.length && !bl.length && !D.must && !D.journal) return null;
     const dd=parse(ds);
     const linie=[DOW[dowIdx(ds)]+" "+dd.getDate()+"."+pad(dd.getMonth()+1)
-      + (D.type ? " · "+D.type : "")];
+      + (D.type ? " · "+literaTypu(D.type)+" "+nazwaTypu(D.type).toLowerCase() : "")];
     if(D.must) linie.push("! "+duza(D.must));
     ta.forEach(x=>linie.push((STMARK[x.st]||"•")+" "+duza(x.txt)
       + (x.note ? "  ("+x.note.replace(/\s+/g," ")+")" : "")));
@@ -2363,7 +2369,7 @@ function vMiesiac(){
       style: wyj ? "--wyj:"+((AREAS[wyj.p.area]||AREAS.K).c) : "",
       title: wyj ? (duza(wyj.p.txt||"Podróż")+" — dzień "+wyj.nr+" z "+wyj.ile) : "",
       onclick:()=>{S.date=ds;S.view="dzis";S.month=ds.slice(0,7);resub();render()}});
-    c.append(el("div",{class:"dn"},String(dt.getDate()),dd.type?el("span",{class:"chip"},dd.type):null));
+    c.append(el("div",{class:"dn"},String(dt.getDate()),dd.type?el("span",{class:"chip",title:nazwaTypu(dd.type)},literaTypu(dd.type)):null));
     if(wyj && (wyj.nr===1 || dowIdx(ds)===0 || dt.getDate()===1))
       c.append(el("div",{class:"ev wyjnap",style:"color:"+((AREAS[wyj.p.area]||AREAS.K).c)},
         "✈ "+duza(wyj.p.txt||"Podróż")));
@@ -2636,7 +2642,8 @@ function vLegenda(){
 
   const c3=sec("Typy dni");
   Object.entries(DAYTYPES).forEach(([k,v])=>c3.append(el("div",{class:"row",style:"align-items:flex-start"},
-    el("b",{style:"width:104px;flex:0 0 104px;font-weight:600"},v.n),
+    el("span",{class:"kolko",title:"Litera w B6"},v.l),
+    el("b",{style:"width:92px;flex:0 0 92px;font-weight:600"},v.n),
     el("span",{class:"note",style:"flex:1;min-width:0"},v.o+" Norma: "+normaTekst(k)+"."))));
   c3.append(el("p",{class:"note"},
     "Norma liczy bloki w obszarach twórczość i studia — to one wypadają pierwsze, "
@@ -3413,7 +3420,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-175116";
+const VER = "20261006-235519";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
