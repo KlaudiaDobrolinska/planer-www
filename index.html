@@ -2285,31 +2285,64 @@ function vTydzien(){
     if(D.journal) linie.push("~ "+D.journal.replace(/\s+/g," "));
     return linie.join("\n");
   };
-  const doPrzep = days.filter(ds=>{
+  /* odcisk treści dnia — dzień zmieniony po przepisaniu wraca na listę */
+  const odcisk = s => { let h=5381;
+    for(let i=0;i<s.length;i++) h=((h*33)^s.charCodeAt(i))>>>0;
+    return h.toString(36); };
+  const stanDnia = ds => {
     const D = S.mdays[ds] || (ds===S.date ? S.day[ds] : null) || {};
-    return !D.przepisane && tekstDnia(ds);
+    const txt = tekstDnia(ds);
+    if(!txt) return null;
+    if(!D.przepisane) return {ds, txt, zmieniony:false};
+    if(D.przepisane === true) return null;              // stary zapis, bez odcisku
+    return D.przepisane === odcisk(txt) ? null : {ds, txt, zmieniony:true};
+  };
+  const doPrzep = days.map(stanDnia).filter(Boolean);
+  const nowe = doPrzep.filter(x=>!x.zmieniony).length;
+  const ileZmien = doPrzep.filter(x=>x.zmieniony).length;
+
+  const wnetrze = el("div",{style:"display:flex;flex-direction:column;gap:10px"});
+  if(S.przepOtwarte !== true) wnetrze.hidden = true;
+  const podsum = doPrzep.length
+    ? (nowe ? nowe+" do przepisania" : "") + (nowe && ileZmien ? " · " : "")
+      + (ileZmien ? ileZmien+" zmienione po przepisaniu" : "")
+    : "wszystko przepisane";
+  const prz = el("button",{class:"ghost"},
+    (wnetrze.hidden ? "▸ " : "▾ ") + "Pokaż: " + podsum);
+  prz.addEventListener("click",()=>{
+    wnetrze.hidden = !wnetrze.hidden;
+    S.przepOtwarte = !wnetrze.hidden;
+    prz.textContent = (wnetrze.hidden ? "▸ " : "▾ ") + "Pokaż: " + podsum;
   });
-  if(!doPrzep.length) pp.append(el("p",{class:"note"},
-    "Wszystko z tego tygodnia jest przepisane. Nowe wpisy pojawią się tutaj same."));
-  doPrzep.forEach(ds=>{
-    const pre=el("pre",{class:"przep"}, tekstDnia(ds));
-    pp.append(el("div",{},pre,
+  pp.append(el("div",{class:"row"}, prz,
+    doPrzep.length ? el("span",{class:"chip",style:ileZmien?"color:var(--r)":""},
+      String(doPrzep.length)) : null), wnetrze);
+
+  if(!doPrzep.length) wnetrze.append(el("p",{class:"note"},
+    "Wszystko z tego tygodnia jest przepisane. Nowe i zmienione wpisy pojawią się tutaj same."));
+  doPrzep.forEach(({ds, txt, zmieniony})=>{
+    const pre=el("pre",{class:"przep"}, txt);
+    wnetrze.append(el("div",{},
+      zmieniony ? el("p",{class:"note",style:"color:var(--r);margin:0"},
+        "Zmienione po przepisaniu — porównaj z B6.") : null,
+      pre,
       el("div",{class:"row"},
         el("button",{class:"ghost",onclick:async()=>{
-          try{ await navigator.clipboard.writeText(tekstDnia(ds)); }catch(e){}
+          try{ await navigator.clipboard.writeText(txt); }catch(e){}
         }},"kopiuj"),
         el("button",{class:"ghost",onclick:async()=>{
           let dane={}; try{ const s=await S.db.doc("days/"+ds).get(); if(s.exists) dane=s.data()||{}; }catch(e){}
-          await S.db.doc("days/"+ds).set({...dane, przepisane:true});
+          await S.db.doc("days/"+ds).set({...dane, przepisane:odcisk(txt)});
         }},"przepisane ✓"))));
   });
-  if(doPrzep.length) pp.append(el("div",{class:"row"},
+  if(doPrzep.length) wnetrze.append(el("div",{class:"row"},
     el("button",{class:"btn",onclick:async()=>{
-      const caly=doPrzep.map(tekstDnia).join("\n\n");
+      const caly=doPrzep.map(x=>x.txt).join("\n\n");
       try{ await navigator.clipboard.writeText(caly); }catch(e){}
     }},"Kopiuj cały tydzień")));
-  pp.append(el("p",{class:"note"},
-    "Dzień znika z listy, gdy oznaczysz go jako przepisany. Zmiana w dniówce go nie przywraca."));
+  wnetrze.append(el("p",{class:"note"},
+    "Dzień znika z listy, gdy oznaczysz go jako przepisany, i wraca, gdy go potem zmienisz — "
+    +"wtedy z czerwoną adnotacją, żebyś wiedziała, że B6 jest nieaktualne."));
 
   return {L:[dl,secAla,secNot,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
 }
@@ -3380,7 +3413,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-174800";
+const VER = "20261006-175116";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
