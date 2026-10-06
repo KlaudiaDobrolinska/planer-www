@@ -789,7 +789,7 @@ const saveDayAny = (d,p)=>{
   S.day[d] = {...dayAny(d), ...p};
   if(S.mdays) S.mdays[d] = S.day[d];
   save("days/"+d, S.day[d]); render(); };
-const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, eksperyment:"", eksperymentWynik:"", ...(S.week[w]||{})});
+const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, eksperyment:"", eksperymentWynik:"", notatki:[], ...(S.week[w]||{})});
 const saveWeek= (w,p)=>{ zapamietajCofke("weeks/"+w, S.week[w] ? weekDoc(w) : null);
   S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
 const uid = ()=>Math.random().toString(36).slice(2,9);
@@ -2081,10 +2081,10 @@ function vTydzien(){
     hrA.append(el("th",{title:DOW[dowIdx(ds)]+" "+parse(ds).getDate()+" — "+ile+" otwartych"},
       DOW[dowIdx(ds)], el("div",{class:"alad"}, String(parse(ds).getDate()))));
   });
-  hrA.append(el("th",{style:"width:26px"},""));
+  hrA.append(el("th",{style:"width:26px"},""), el("th",{style:"width:26px"},""));
   tbA.append(el("thead",{},hrA));
   const tbA2 = el("tbody");
-  if(!wiersze.length) tbA2.append(el("tr",{},el("td",{class:"lft",colspan:"9"},
+  if(!wiersze.length) tbA2.append(el("tr",{},el("td",{class:"lft",colspan:"10"},
     el("span",{class:"note"},"Pusto. Dopisz zadanie — wyląduje w puli, bez dnia."))));
   wiersze.forEach(({t:z, gdzie})=>{
     const ob = AREAS[z.area] || AREAS.K;
@@ -2118,6 +2118,17 @@ function vTydzien(){
       if(tu) przytrzymanie(kom, ()=>przypisz(z, gdzie, "pula"));
       tr.append(el("td",{},kom));
     });
+    const maNote = (weekDoc(w).notatki||[]).some(n=>n.zad===z.id);
+    tr.append(el("td",{},el("button",{class:"ala"+(maNote?" jest":""),
+      title: maNote ? "Ma rozpisaną notatkę — otwórz niżej" : "Rozpisz to zadanie w notatkach",
+      onclick:()=>{
+        const lista = weekDoc(w).notatki||[];
+        const jest = lista.find(n=>n.zad===z.id);
+        if(jest){ S.nota = jest.id; render(); return; }
+        const nowa = {id:uid(), zad:z.id, tytul:duza(z.txt), tresc:"", area:z.area||"K"};
+        S.nota = nowa.id;
+        saveWeek(w,{notatki:[...lista, nowa]});
+      }}, maNote ? "≡" : "+≡")));
     tr.append(el("td",{},el("button",{class:"ala",title:"Usuń zadanie",
       onclick:()=>{ if(confirm("Usunąć „"+duza(z.txt)+"”?")) usun(z, gdzie); }},"✕")));
     tbA2.append(tr);
@@ -2147,6 +2158,41 @@ function vTydzien(){
     +"Kliknięcie w kratkę dnia przypisuje zadanie do tego dnia, kliknięcie w jego własną kratkę "
     +"oznacza zrobione, przytrzymanie odkłada z powrotem do puli. "
     +"Dzień, z którego zadanie uciekło, zostaje ze znakiem „>” — po tygodniu widać, co się przesuwa."));
+
+  /* --- notatki tygodnia: zadania rozpisane na czynniki pierwsze --- */
+  const notatki = Array.isArray(W.notatki) ? W.notatki : [];
+  const secNot = sec("Notatki");
+  if(!notatki.length) secNot.append(el("p",{class:"note"},
+    "Pusto. Przycisk +≡ przy zadaniu zakłada notatkę z jego nazwą — "
+    +"tu rozpisujesz, co dokładnie trzeba zrobić."));
+  notatki.forEach(n=>{
+    const ob = AREAS[n.area] || AREAS.K;
+    const tyt = el("input",{type:"text",value:duza(n.tytul||""),placeholder:"Czego dotyczy",
+      style:"width:auto;flex:1 1 160px;min-width:0;font-weight:600"});
+    const tre = el("textarea",{rows:(S.nota===n.id ? 7 : 5),
+      placeholder:"Co dokładnie trzeba zrobić — krok po kroku, z tym, co istotne"});
+    tre.value = n.tresc || "";
+    const zap = p => saveWeek(w,{notatki:(weekDoc(w).notatki||[]).map(x=>x.id===n.id?{...x,...p}:x)});
+    tyt.addEventListener("change",()=>zap({tytul:duza(tyt.value)}));
+    tre.addEventListener("change",()=>zap({tresc:tre.value}));
+    secNot.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:6px"},
+      el("button",{class:"mark",style:"color:"+ob.c,title:"Obszar: "+ob.n,
+        onclick:()=>{ const ks=Object.keys(AREAS);
+          zap({area:ks[(ks.indexOf(n.area||"K")+1)%ks.length]}); }},"■"),
+      tyt,
+      el("button",{class:"ghost",title:"Usuń notatkę",onclick:()=>{
+        if(!confirm("Usunąć notatkę „"+duza(n.tytul||"")+"”?")) return;
+        saveWeek(w,{notatki:(weekDoc(w).notatki||[]).filter(x=>x.id!==n.id)});
+      }},"✕")), tre);
+    if(S.nota === n.id) setTimeout(()=>{ tre.focus(); tre.scrollIntoView({block:"center"}); S.nota=null; },60);
+  });
+  secNot.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>{
+      saveWeek(w,{notatki:[...(weekDoc(w).notatki||[]), {id:uid(), tytul:"Nowa notatka", tresc:"", area:"K"}]});
+    }},"Dodaj notatkę")));
+  secNot.append(el("p",{class:"note"},
+    "Notatki zostają przy tygodniu, więc w niedzielę widać je razem z przeglądem. "
+    +"Zadanie, które ma notatkę, pokazuje ≡ w liście wyżej."));
 
   const grupyDomu = [];
   HOME.forEach(h=>{ const g=h[2]||"Dom"; if(!grupyDomu.includes(g)) grupyDomu.push(g); });
@@ -2286,7 +2332,7 @@ function vTydzien(){
   pp.append(el("p",{class:"note"},
     "Dzień znika z listy, gdy oznaczysz go jako przepisany. Zmiana w dniówce go nie przywraca."));
 
-  return {L:[dl,secAla,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
+  return {L:[dl,secAla,secNot,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -3323,7 +3369,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-162131";
+const VER = "20261006-163102";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
