@@ -208,6 +208,12 @@ label.fld{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(
 .blk.done{background:color-mix(in srgb,currentColor 24%,transparent)}
 .blk.done span{font-weight:600}
 .blk span{color:var(--fg)}
+.blk.kal{color:var(--pink);background:color-mix(in srgb,var(--paper) 88%,transparent);cursor:default}
+.blk.kal span{font-weight:600}
+.blk.dojazd{border:1px dashed color-mix(in srgb,var(--ink-3) 55%,transparent);color:var(--ink-3);
+  background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--ink-3) 14%,transparent) 0 3px,
+    transparent 3px 7px);font-size:9px;padding:0 3px;cursor:default;z-index:0}
+.blk.dojazd span{color:var(--ink-3);font-weight:400}
 
 /* tabele */
 .mini{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
@@ -725,6 +731,8 @@ const naMin  = h => (+h.slice(0,2))*60 + (+h.slice(3));
 const naCzas = m => { const x=Math.max(0,Math.min(1439,Math.round(m)));
   return pad(Math.floor(x/60))+":"+pad(x%60); };
 /* godzina wpisana z ręki: 9, 930, 9:30, 9.30, 0930 — zawsze wychodzi HH:MM */
+const DOJAZD = 15;                  // minut na drogę przed i po wydarzeniu poza domem
+const ONLINE = /(online|on-?line|zdaln|wideo|video|telefon|tel\.|meet|zoom|teams|skype|whatsapp|https?:\/\/)/i;
 const naGodzine = (txt, zapas) => {
   const s = String(txt==null?"":txt).trim().replace(/[.,;\-]/g,":").replace(/\s+/g,"");
   if(!s) return zapas;
@@ -1458,13 +1466,26 @@ function vDzis(){
     zamknij();
     return mapa;
   };
-  const uklad = ukladBlokow(D.blocks);
+  /* wydarzenia z kalendarza wchodzą na oś; te poza domem zabierają też czas na drogę */
+  const naOsi = [];
+  calFor(d).forEach(e=>{
+    if(e.allDay || !e.st || !e.en || e.st.slice(0,10)!==d) return;
+    const s = naMin(e.st.slice(11,16));
+    const k = e.en.slice(0,10)===d ? naMin(e.en.slice(11,16)) : 1439;
+    if(k<=s) return;
+    const online = ONLINE.test((e.s||"")+" "+((e.raw&&e.raw.location)||""));
+    naOsi.push({id:"kal-"+e.id, s:naCzas(s), e:naCzas(k), txt:e.s, online, kal:true});
+    if(online) return;
+    if(s-DOJAZD >= 0)    naOsi.push({id:"dja-"+e.id, s:naCzas(s-DOJAZD), e:naCzas(s), txt:"Dojazd"});
+    if(k+DOJAZD <= 1439) naOsi.push({id:"djb-"+e.id, s:naCzas(k), e:naCzas(k+DOJAZD), txt:"Powrót"});
+  });
+  const uklad = ukladBlokow([...D.blocks, ...naOsi]);
 
   /* puste godziny nocne zwijamy, ale nigdy nie chowamy bloku */
   let hOd=H0, hDo=H1;
   if(!S.osPelna){
     let od=6, doo=22;
-    D.blocks.forEach(b=>{
+    [...D.blocks, ...naOsi].forEach(b=>{
       const s=+b.s.slice(0,2);
       const e=+b.e.slice(0,2)+((+b.e.slice(3))>0?1:0);
       if(s<od) od=s;
@@ -1570,6 +1591,21 @@ function vDzis(){
           kafel.addEventListener("pointercancel",()=>{ koniecChwytu(); chwyt=null; render(); });
         }
       });
+      naOsi.forEach(x=>{
+        const s = naMin(x.s)/60, k = naMin(x.e)/60;
+        if(!(s>=pocz && s<pocz+0.25)) return;
+        const u = uklad[x.id] || {col:0, n:1};
+        const szer = 100/u.n, lewo = u.col*szer;
+        cell.append(el("div",{class:"blk "+(x.kal?"kal":"dojazd")+(u.n>1?" waski":""),
+          title: x.kal
+            ? ("Kalendarz Google · "+x.s+"–"+x.e+(x.online?" · online, bez dojazdu":" · plus "+DOJAZD+" min drogi w każdą stronę"))
+            : (x.txt+" · "+x.s+"–"+x.e+" · "+DOJAZD+" minut na drogę"),
+          style:"top:"+((s-pocz)*4*KW)+"px;height:"
+            +Math.max(10,(Math.max(.25,Math.min(k,H1+1)-s)*4*KW-2))+"px;"
+            +"left:calc("+lewo+"% + 3px);width:calc("+szer+"% - 6px);right:auto",
+          onclick:(ev)=>{ ev.stopPropagation(); }},
+          el("span",{}, x.kal ? duza(x.txt) : "⇢ "+x.txt)));
+      });
     }
   }
   const bl=el("div",{class:"tasks",style:"margin-top:7px"});
@@ -1660,6 +1696,8 @@ function vDzis(){
     el("p",{class:"note"},"Kliknij w oś, by zacząć blok o tej godzinie. "
       +"Siatka ma podziałkę co 15 minut. Bloki, które się zazębiają, dzielą szerokość — "
       +"możesz położyć konsultację na długim bloku gabinetu. "
+      +"Wydarzenia z Kalendarza Google wchodzą na oś same. Jeśli w nazwie albo w miejscu "
+      +"nie ma „online” (ani linku), dokładam przed i po pas "+DOJAZD+" minut na drogę. "
       +"Przytrzymaj blok, żeby go otworzyć do edycji. Otwarty blok przeciągniesz palcem: "
       +"w pionie przesuwasz, przy dolnej krawędzi zmieniasz długość. "
       +"Blok = 90–120 minut jednej rzeczy, najwyżej 2–3 dziennie."));
@@ -2989,7 +3027,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-094237";
+const VER = "20261006-094622";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
