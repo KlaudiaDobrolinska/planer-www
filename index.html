@@ -2144,6 +2144,46 @@ function vTydzien(){
     +"oznacza zrobione, przytrzymanie odkłada z powrotem do puli. "
     +"Dzień, z którego zadanie uciekło, zostaje ze znakiem „>” — po tygodniu widać, co się przesuwa."));
 
+  /* --- grafik gabinetu: jeden wiersz na dzień, puste = dzień wolny --- */
+  const secGraf = sec("Grafik gabinetu");
+  const blokGab = ds => (dayAny(ds).blocks || []).find(b => b.txt === "Gabinet");
+  const ustawGab = (ds, txt) => {
+    const D = dayAny(ds);
+    const stare = (D.blocks || []).filter(b => b.txt !== "Gabinet");
+    const s = String(txt || "").trim();
+    if(!s) { saveDayAny(ds, {blocks: stare}); return; }
+    const cz = s.split(/[-–—do]+/i).map(x=>x.trim()).filter(Boolean);
+    const od = naGodzine(cz[0], null);
+    const doo = naGodzine(cz[1], null);
+    if(!od || !doo || naMin(doo) <= naMin(od)) { render(); return; }
+    saveDayAny(ds, {blocks:[...stare, {id:uid(), s:od, e:doo, area:"G",
+      txt:"Gabinet", proj:"", done:false}]});
+  };
+  days.forEach(ds=>{
+    const b = blokGab(ds);
+    const pole = el("input",{type:"text",placeholder:"wolne",
+      value: b ? (b.s+"–"+b.e) : "",
+      style:"width:auto;flex:0 0 118px;text-align:center",
+      inputmode:"numeric", title:"Np. 10-17 albo 9:30-16. Puste = dzień wolny."});
+    pole.addEventListener("change", ()=>ustawGab(ds, pole.value));
+    pole.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); pole.blur(); } });
+    secGraf.append(el("div",{class:"row",style:"flex-wrap:nowrap;gap:8px"},
+      el("span",{style:"flex:0 0 74px;color:var(--fg-2)"},
+        DOW[dowIdx(ds)]+" "+parse(ds).getDate()),
+      pole,
+      el("span",{class:"note",style:"flex:1 1 auto;min-width:0"},
+        b ? (Math.round((naMin(b.e)-naMin(b.s))/6)/10 + " godz") : "")));
+  });
+  secGraf.append(el("div",{class:"row"},
+    el("button",{class:"ghost",onclick:()=>{
+      const zrodlo = days.map(ds=>blokGab(addD(ds,-7)));
+      if(!zrodlo.some(Boolean)) { alert("W poprzednim tygodniu nie ma wpisanego grafiku."); return; }
+      days.forEach((ds,i)=>{ const b=zrodlo[i]; ustawGab(ds, b ? (b.s+"–"+b.e) : ""); });
+    }},"przepisz z poprzedniego tygodnia")));
+  secGraf.append(el("p",{class:"note"},
+    "Godziny wpisujesz jak w blokach: 10-17, 9:30-16. Puste pole kasuje gabinet z tego dnia. "
+    +"Blok wchodzi na oś dnia w kolorze gabinetu, więc od razu widać, ile zostaje czasu własnego."));
+
   /* --- notatki tygodnia: zadania rozpisane na czynniki pierwsze --- */
   const notatki = Array.isArray(W.notatki) ? W.notatki : [];
   const secNot = sec("Notatki");
@@ -2350,7 +2390,7 @@ function vTydzien(){
     "Dzień znika z listy, gdy oznaczysz go jako przepisany, i wraca, gdy go potem zmienisz — "
     +"wtedy z czerwoną adnotacją, żebyś wiedziała, że B6 jest nieaktualne."));
 
-  return {L:[dl,secAla,secNot,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
+  return {L:[dl,secGraf,secAla,secNot,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -3420,7 +3460,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261006-235519";
+const VER = "20261010-180202";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
