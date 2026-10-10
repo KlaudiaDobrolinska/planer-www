@@ -575,8 +575,7 @@ function cfgZapisz(){
     home:HOME.map(h=>[...h])});
 }
 function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : ST; }
-const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["In","Inktober"],
-  ["Wc","Wcierka"],["Al","Nakładki"]];
+const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
 const PODROZE = [];            // {id, od:"2026-11-10", do:"2026-11-13", txt:"Wyjazd", area:"K"}
@@ -616,6 +615,7 @@ const INKTOBER = [
     "Drzwi","Wazon","Liść","Muszla","Spacer","Owoc","Morze","Człowiek"]}
 ];
 const inkNaDzien = (dstr)=>{
+  if(!HABITS.some(h=>h[1]==="Inktober")) return [];   // nawyk skreślony = hasła znikają
   const dt=parse(dstr);
   if(dt.getMonth()!==9) return [];
   const i=dt.getDate()-1;
@@ -3460,7 +3460,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261010-180202";
+const VER = "20261010-180415";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
