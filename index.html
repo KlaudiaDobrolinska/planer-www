@@ -535,6 +535,7 @@ function cfgZapamietajFabryczne(){
   FABR.KOTWICE = KOTWICE.map(k=>({...k, dni:[...k.dni]}));
   FABR.HOME = HOME.map(h=>[...h]);
   FABR.TERMINY = TERMINY.map(x=>({...x}));
+  FABR.STALE = STALE_FABR.map(x=>({...x}));
   FABR.PODROZE = PODROZE.map(x=>({...x}));
   FABR.SZABLONY = [];
 }
@@ -557,6 +558,8 @@ function cfgZastosuj(c){
   KOTWICE.length = 0; kt.forEach(x=>KOTWICE.push({...x, dni:[...(x.dni||[])]}));
   const tm = (c && c.terminy) ? c.terminy : FABR.TERMINY;
   TERMINY.length = 0; tm.forEach(x=>TERMINY.push({...x}));
+  const st = (c && c.stale) ? c.stale : FABR.STALE;
+  STALE.length = 0; st.forEach(x=>STALE.push({...x}));
   const pd = (c && c.podroze) ? c.podroze : FABR.PODROZE;
   PODROZE.length = 0; pd.forEach(x=>PODROZE.push({...x}));
   const sz = (c && c.szablony) ? c.szablony : FABR.SZABLONY;
@@ -570,6 +573,7 @@ function cfgZapisz(){
     habits:HABITS.map(h=>[...h]),
     kotwice:KOTWICE.map(k=>({...k, dni:[...k.dni]})),
     terminy:TERMINY.map(x=>({...x})),
+    stale:STALE.map(x=>({...x})),
     podroze:PODROZE.map(x=>({...x})),
     szablony:JSON.parse(JSON.stringify(SZABLONY)),
     home:HOME.map(h=>[...h])});
@@ -578,6 +582,10 @@ function cyklZnakow(){ const c = ST.filter(s=>STCYC[s]); return c.length ? c : S
 const HABITS = [["Sz","Szydełko"],["Dz","Dziennik"],["Wc","Wcierka"],["Al","Nakładki"]];
 const HMARK = {1:"■",2:"◩",0:"□",3:"/"};
 const TERMINY = [];            // {d:"2026-10-15", txt:"Test chusty"}
+/* Co miesiąc to samo: dzień miesiąca, treść, obszar. Wchodzi do siatki miesiąca samo. */
+const STALE = [];              // {dzien:9, txt:"Płatności…", area:"K"}
+const STALE_FABR = [{dzien:9, txt:"Płatności: zajęcia Julii", area:"J"},
+                    {dzien:9, txt:"Płatności: studia", area:"S"}];
 const PODROZE = [];            // {id, od:"2026-11-10", do:"2026-11-13", txt:"Wyjazd", area:"K"}
 const SZABLONY = [];           // {nazwa, typ, tasks:[...], blocks:[...]}
 const KOTWICE = [                       // zadania, które pojawiają się same
@@ -798,6 +806,18 @@ const saveDayAny = (d,p)=>{
   S.day[d] = {...dayAny(d), ...p};
   if(S.mdays) S.mdays[d] = S.day[d];
   save("days/"+d, S.day[d]); render(); };
+/* Lista nawyków bywa inna w każdym miesiącu i w każdym tygodniu: w listopadzie
+   mogę śledzić co innego niż w październiku. Dopóki okres nie ma własnej listy,
+   obowiązuje ta z ustawień. */
+const nawykiMies = m => { const L = (S.habits[m]||{}).lista;
+  return (Array.isArray(L) && L.length) ? L.map(x=>[x[0], x[1]]) : HABITS.map(h=>[...h]); };
+const nawykiTyg = (w, mies) => { const L = (S.week[w]||{}).nawyki;
+  return (Array.isArray(L) && L.length) ? L.map(x=>[x[0], x[1]]) : nawykiMies(mies); };
+const zapiszNawykiMies = (m, lista) => {
+  const h = {...(S.habits[m]||{})};
+  if(lista) h.lista = lista.map(x=>[x[0], x[1]]); else delete h.lista;
+  zapamietajCofke("habits/"+m, S.habits[m] || null);
+  S.habits[m] = h; save("habits/"+m, h); render(); };
 const weekDoc = w => ({top3:["","",""], quota:{}, home:{}, review:{}, eksperyment:"", eksperymentWynik:"", notatki:[], ...(S.week[w]||{})});
 const saveWeek= (w,p)=>{ zapamietajCofke("weeks/"+w, S.week[w] ? weekDoc(w) : null);
   S.week[w]={...weekDoc(w),...p}; save("weeks/"+w, S.week[w]); render(); };
@@ -1061,6 +1081,11 @@ function resub(){
   on(S.db.doc("days/"+d),    s=>{S.day[d]=s.exists?s.data():null; dodajKotwice(d); render()});
   on(S.db.doc("weeks/"+w),   s=>{S.week[w]=s.exists?s.data():null; render()});
   on(S.db.doc("habits/"+m),  s=>{S.habits[m]=s.exists?s.data():{}; render()});
+  /* tydzień bywa rozpięty między dwa miesiące — kratki nawyków muszą działać w obu */
+  [monday(d).slice(0,7), addD(monday(d),6).slice(0,7)].forEach(mm=>{
+    if(mm === m) return;
+    on(S.db.doc("habits/"+mm), s=>{S.habits[mm]=s.exists?s.data():{}; render()});
+  });
   on(S.db.doc("health/"+m),  s=>{S.health[m]=s.exists?s.data():{}; render()});
   on(S.db.collection("goals").orderBy("ord"), s=>{S.goals=s.docs.map(x=>({id:x.id,...x.data()})); render()});
   on(S.db.collection("lists").orderBy("ord"), s=>{S.lists=s.docs.map(x=>({id:x.id,...x.data()})); render()});
@@ -2363,6 +2388,47 @@ function vTydzien(){
       "„Weź” dopisuje zadanie do puli albo wprost do dnia; ✕ chowa je do końca tygodnia."));
   }
 
+  /* --- nawyki tygodnia: ta sama kratka co w miesiącu, lista własna dla tygodnia --- */
+  const secNaw = sec("Nawyki");
+  {
+    const nawykiW = nawykiTyg(w, mon.slice(0,7));
+    const wlasnaW = Array.isArray(W.nawyki) && W.nawyki.length > 0;
+    const tb = el("table",{class:"tb dom"});
+    const hr = el("tr",{}, el("th",{class:"lft"},""));
+    days.forEach(ds=>hr.append(el("th",{title:longDate(ds)},DOW[dowIdx(ds)])));
+    tb.append(el("thead",{},hr));
+    const tbody = el("tbody");
+    nawykiW.forEach(([k,nazwa])=>{
+      const tr = el("tr",{}, el("td",{class:"lft"},duza(nazwa)));
+      days.forEach(ds=>{
+        const mm = ds.slice(0,7), dzien = parse(ds).getDate();
+        const H = S.habits[mm] || {};
+        const cur = (H[dzien]||{})[k];
+        tr.append(el("td",{}, el("button",{
+          class:"cell kw"+(cur==null ? "" : " s"+cur),
+          title: nazwa+" · "+longDate(ds)+" — "
+            +(cur==null ? "puste" : {1:"zrobione",2:"wersja minimum",0:"nie",3:"nie dotyczy"}[cur]),
+          onclick:()=>{
+            const cyc=[1,2,0,3,null], nx=cyc[(cyc.indexOf(cur==null?null:cur)+1)%cyc.length];
+            const day = {...(H[dzien]||{})};
+            if(nx==null) delete day[k]; else day[k]=nx;
+            const nh = {...H, [dzien]:day};
+            zapamietajCofke("habits/"+mm, S.habits[mm] || null);
+            S.habits[mm] = nh; save("habits/"+mm, nh); render();
+          }})));
+      });
+      tbody.append(tr);
+    });
+    tb.append(tbody);
+    secNaw.append(tb);
+    edytorNawykowOkres(secNaw, nawykiW,
+      L=>{ saveWeek(w, {nawyki: L ? L.map(x=>[x[0],x[1]]) : null}); },
+      "edytuj nawyki tego tygodnia", wlasnaW);
+    secNaw.append(el("p",{class:"note"},
+      "Kratki są te same, co w zakładce Trackery — odhaczone tutaj widać tam i odwrotnie. "
+      +"Własna lista zmienia tylko to, co widzisz w tym tygodniu."));
+  }
+
   const grupyDomu = [];
   HOME.forEach(h=>{ const g=h[2]||"Dom"; if(!grupyDomu.includes(g)) grupyDomu.push(g); });
   const sekcjeDomu = grupyDomu.map(grupa=>{
@@ -2534,7 +2600,7 @@ function vTydzien(){
     "Dzień znika z listy, gdy oznaczysz go jako przepisany, i wraca, gdy go potem zmienisz — "
     +"wtedy z czerwoną adnotacją, żebyś wiedziała, że B6 jest nieaktualne."));
 
-  return {L:[dl,secProp,secGraf,secAla,secNot,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
+  return {L:[dl,secProp,secGraf,secAla,secNot,secNaw,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -2557,14 +2623,21 @@ function vMiesiac(){
     if(wyj && (wyj.nr===1 || dowIdx(ds)===0 || dt.getDate()===1))
       c.append(el("div",{class:"ev wyjnap",style:"color:"+((AREAS[wyj.p.area]||AREAS.K).c)},
         "✈ "+duza(wyj.p.txt||"Podróż")));
-    calFor(ds).slice(0,3).forEach(e=>c.append(el("div",{class:"ev",style:"color:var(--ink-2)"},
-      (e.t?e.t+" ":"")+e.s)));
+    const wp = wpisyDnia(ds);
+    wp.slice(0,4).forEach(e=>c.append(el("div",{class:"ev", title:e.txt,
+      style:"color:"+(e.area ? (AREAS[e.area]||AREAS.K).c : "var(--ink-2)")
+        +(e.waga===2 ? ";font-weight:600" : "")}, e.txt)));
+    if(wp.length>4) c.append(el("div",{class:"ev",style:"color:var(--ink-3)",
+      title: wp.slice(4).map(e=>e.txt).join(" · ")}, "+"+(wp.length-4)+" więcej"));
     if(dd.must) c.append(el("div",{class:"ev",style:"color:var(--t)"},duza(dd.must)));
     g.append(c);
   }
   const s=sec(MONTHN[m-1]+" "+y,g);
   calNote(s);
-  s.append(el("p",{class:"note"},"Terminy pochodzą z Kalendarza Google. Typ dnia i „musi się udać” — z dniówek."));
+  s.append(el("p",{class:"note"},
+    "W siatce stoi wszystko, co ustalone: wpisy z Kalendarza Google, zjazdy, formy zaliczenia, "
+    +"terminy projektów, pozycje stałe co miesiąc, podróże, typ dnia i „musi się udać”. "
+    +"Kalendarz ma pierwszeństwo — co już w nim jest, nie dopisuje się drugi raz."));
 
   const sp = sec("Podróże");
   const wMies = (PODROZE||[]).filter(x=>x.od && x.do
@@ -2586,7 +2659,65 @@ function vMiesiac(){
       el("b",{style:"flex:0 0 auto;font-weight:600"}, ile+" dni")));
   });
   edytorPodrozy(sp);
-  return {W:[s,sp]};
+
+  const ss = sec("Stałe co miesiąc");
+  if(!STALE.length) ss.append(el("p",{class:"note"},
+    "Nic nie powtarza się co miesiąc. Dodaj pozycję, a wejdzie sama w każdy miesiąc."));
+  STALE.forEach((x,i)=>{
+    const dz = el("input",{type:"number",min:"1",max:"31",value:String(x.dzien||1),
+      style:"width:58px;flex:0 0 58px"});
+    const tx = el("input",{type:"text",value:duza(x.txt||""),placeholder:"Co to jest",
+      style:"flex:1 1 150px;min-width:0"});
+    dz.addEventListener("change",()=>{
+      const v = Math.min(31, Math.max(1, parseInt(dz.value,10)||1));
+      STALE[i].dzien = v; cfgZapisz(); render(); });
+    tx.addEventListener("change",()=>{ STALE[i].txt = duza(tx.value); cfgZapisz(); render(); });
+    ss.append(el("div",{class:"row tight",style:"gap:4px"},
+      el("span",{class:"note",style:"flex:0 0 auto"},"dzień"), dz, tx,
+      el("button",{class:"ghost",title:"Obszar",onclick:()=>{ const ks=Object.keys(AREAS);
+        STALE[i].area = ks[(ks.indexOf(x.area||"K")+1)%ks.length]; cfgZapisz(); render(); }},
+        (AREAS[x.area]||AREAS.K).nr),
+      areaDot(x.area||"K"),
+      el("button",{class:"ghost",title:"Usuń pozycję",onclick:()=>{
+        STALE.splice(i,1); cfgZapisz(); render(); }},"✕")));
+  });
+  ss.append(el("div",{class:"row"}, el("button",{class:"btn",onclick:()=>{
+    STALE.push({dzien:1, txt:"Nowa pozycja", area:"K"}); cfgZapisz(); render(); }},"Dodaj pozycję")));
+  ss.append(el("p",{class:"note"},
+    "Wchodzi w każdy miesiąc tego samego dnia. Jeżeli to samo masz już w Kalendarzu Google, "
+    +"siatka pokaże wpis z kalendarza, a nie oba."));
+
+  return {W:[s,sp,ss]};
+}
+
+/* ---------- co samo wchodzi do siatki miesiąca ---------- */
+/* Porównanie na potrzeby dubli: bez znaków, bez wielkości liter, bez ogonków. */
+const OGON = {"ą":"a","ć":"c","ę":"e","ł":"l","ń":"n","ó":"o","ś":"s","ź":"z","ż":"z"};
+const plaski = t => String(t||"").toLowerCase()
+  .replace(/[ąćęłńóśźż]/g, z=>OGON[z]).replace(/[^a-z0-9]+/g," ").trim();
+const tosamo = (a,b) => { const x=plaski(a), y=plaski(b);
+  if(!x || !y) return false;
+  return x===y || (x.length>=5 && y.includes(x)) || (y.length>=5 && x.includes(y)); };
+
+/* Wszystko, co na dany dzień wynika z ustaleń: zjazdy, formy zaliczenia, terminy
+   projektów i pozycje stałe. Kalendarz Google ma pierwszeństwo — jeżeli coś już tam
+   jest, nie dopisujemy tego drugi raz. */
+function wpisyAuto(ds){
+  const out = [];
+  const zj = ZJAZDY.find(([d])=>d===ds);
+  if(zj) out.push({txt:"Zjazd · "+zj[1].map(b=>b[3]).join(" "), area:"S", waga:1});
+  Object.keys(PRZEDM).forEach(kod=>elementyDla(kod).forEach(e=>{
+    if(e.d === ds) out.push({txt:kod+" · "+e.forma, area:"S", waga:2}); }));
+  (TERMINY||[]).forEach(t=>{ if(t.d === ds) out.push({txt:duza(t.txt), area:"T", waga:2}); });
+  (STALE||[]).forEach(x=>{ if(parse(ds).getDate() === x.dzien)
+    out.push({txt:duza(x.txt), area:x.area||"K", waga:0}); });
+  return out;
+}
+function wpisyDnia(ds){
+  const gcal = calFor(ds).map(e=>({txt:(e.t?e.t+" ":"")+e.s, area:null, gcal:true, waga:0}));
+  const auto = wpisyAuto(ds).filter(a=>!gcal.some(g=>tosamo(g.txt, a.txt)));
+  auto.sort((a,b)=>b.waga-a.waga);
+  return [...gcal, ...auto];
 }
 
 /* ---------- Trackery ---------- */
@@ -2595,6 +2726,8 @@ function vTrackery(){
   const H=S.habits[S.month]||{}, He=S.health[S.month]||{};
 
   const c1=sec("Nawyki");
+  const nawykiM = nawykiMies(S.month);
+  const wlasnaM = Array.isArray((S.habits[S.month]||{}).lista) && (S.habits[S.month]||{}).lista.length>0;
   const t1=el("table",{class:"tb siatka"});
   const h1=el("tr",{},el("th",{class:"lft"},""));
   for(let i=1;i<=n;i++){
@@ -2604,7 +2737,7 @@ function vTrackery(){
   }
   t1.append(el("thead",{},h1));
   const b1=el("tbody");
-  HABITS.forEach(([k,nazwa])=>{
+  nawykiM.forEach(([k,nazwa])=>{
     const tr=el("tr",{},el("td",{class:"lft"},nazwa));
     for(let i=1;i<=n;i++){
       const cur=(H[i]||{})[k];
@@ -2638,7 +2771,8 @@ function vTrackery(){
       el("span",{class:"row",style:"gap:5px"},el("span",{class:"cell kw legkw",style:"pointer-events:none"}),
         el("span",{class:"note"},"pusta — nic nie zapisano"))),
     el("p",{class:"note"},"Klikanie przechodzi po kolei: zrobione → minimum → nie → nie dotyczy → pusta."));
-  edytorNawykow(c1);
+  edytorNawykowOkres(c1, nawykiM, L=>zapiszNawykiMies(S.month, L),
+    "edytuj nawyki tego miesiąca", wlasnaM);
 
   const c2=sec("Samopoczucie i cykl");
   const t2=el("table",{class:"tb siatka"});
@@ -2696,7 +2830,7 @@ function vTrackery(){
     liczbyWiersz("Średnio psychicznie", pm.P),
     liczbyWiersz("Średnio efektywność", pm.E));
   const serie=el("div",{});
-  HABITS.forEach(([k,nazwa])=>{
+  nawykiM.forEach(([k,nazwa])=>{
     let teraz=0, najdluzsza=0, razem=0;
     for(let i=1;i<=n;i++){
       const v=(H[i]||{})[k];
@@ -3277,6 +3411,39 @@ function edytorObszarow(box){
   box.append(el("p",{class:"note"},
     "Litera to klucz zapisany przy zadaniach i blokach — zmieniasz nazwę, kolor i numer pisaka. "
     +"Kolor jest ten sam w trybie jasnym i ciemnym."));
+}
+/* Edytor listy nawyków dla jednego okresu — ten sam w miesiącu i w tygodniu.
+   `zapisz(lista)` dostaje nową listę, `zapisz(null)` oznacza powrót do dziedziczonej. */
+function edytorNawykowOkres(box, lista, zapisz, opis, wlasna){
+  const panel = el("div",{hidden:true,style:"display:flex;flex-direction:column;gap:8px"});
+  lista.forEach((h,i)=>{
+    const nm = el("input",{type:"text",value:h[1],style:"width:auto;flex:1 1 170px;min-width:0"});
+    nm.addEventListener("change",()=>{
+      const L = lista.map(x=>[...x]); L[i][1] = duza(nm.value); zapisz(L); });
+    panel.append(el("div",{class:"row"}, nm,
+      el("button",{class:"ghost",title:"Wyżej",onclick:()=>{
+        if(i===0) return;
+        const L = lista.map(x=>[...x]); const a = L[i-1]; L[i-1] = L[i]; L[i] = a; zapisz(L);
+      }},"⌃"),
+      el("button",{class:"ghost",title:"Usuń nawyk z tego okresu",onclick:()=>{
+        const L = lista.filter((_,j)=>j!==i); zapisz(L.length ? L : []);
+      }},"✕")));
+  });
+  panel.append(el("div",{class:"row"},
+    el("button",{class:"btn",onclick:()=>zapisz([...lista.map(x=>[...x]), ["h"+uid(),"Nowy nawyk"]])},
+      "Dodaj nawyk"),
+    wlasna ? el("button",{class:"ghost",title:"Wróć do listy z ustawień",
+      onclick:()=>zapisz(null)},"wróć do domyślnych") : null));
+  panel.append(el("p",{class:"note"},
+    (wlasna ? "Ten okres ma własną listę nawyków. " : "Lista dziedziczona z ustawień; "
+      + "pierwsza zmiana zakłada listę tylko dla tego okresu. ")
+    + "Odhaczone kratki zostają w danych, nawet gdy nawyk zniknie z tabeli."));
+  const przycisk = el("button",{class:"ghost"},"▸ "+opis);
+  przycisk.addEventListener("click",()=>{
+    panel.hidden = !panel.hidden;
+    przycisk.textContent = (panel.hidden ? "▸ " : "▾ ") + opis;
+  });
+  box.append(el("div",{class:"row"},przycisk), panel);
 }
 function edytorNawykow(box){
   const panel = el("div",{hidden:true,style:"display:flex;flex-direction:column;gap:8px"});
@@ -3965,7 +4132,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261102-132124";
+const VER = "20261102-134746";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
