@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#bd7f90">
+<meta name="theme-color" content="#8a6a4a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Planer">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="robots" content="noindex,nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="ikona-180.png">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23bd7f90'/%3E%3Crect x='9' y='8' width='14' height='17' rx='2' fill='%23fffdfb'/%3E%3Cpath d='M12 13h8M12 17h8M12 21h5' stroke='%23bd7f90' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%238a6a4a'/%3E%3Crect x='9' y='8' width='14' height='17' rx='2' fill='%23fffdfb'/%3E%3Cpath d='M12 13h8M12 17h8M12 21h5' stroke='%238a6a4a' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 img{max-width:100%}
@@ -64,29 +64,29 @@ img{max-width:100%}
 }
 /* skórka „System” — wygląd aplikacji macOS; włączana w Legendzie, nie nadpisuje papieru */
 :root[data-skin="mac"]{
-  --desk:#f2f2f6; --paper:#ffffff; --paper-2:#f7f7f9; --side:#eaeaef;
+  --desk:#efe8dc; --paper:#fffdf9; --paper-2:#f8f3e9; --side:#efe6d6;
   --grid:transparent; --grid-5:transparent;
-  --fg:#1d1d1f; --fg-2:#5f5f64; --fg-3:#8c8c91;
-  --line:#d9d9de; --line-2:#ebebef;
-  --pink:#0a6cff; --pink-2:#0a58d0; --pink-soft:#e9f0ff;
-  --ink:#30506a; --dziennik:#3a3a3f;
+  --fg:#2b241c; --fg-2:#635646; --fg-3:#958876;
+  --line:#ded2bd; --line-2:#ece3d3;
+  --pink:#8a6a4a; --pink-2:#6f5439; --pink-soft:#f3e8d6;
+  --ink:#4a6a5b; --dziennik:#6a5742;
   --disp:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root[data-skin="mac"]:not([data-theme="light"]){
-  --desk:#1c1c1e; --paper:#2a2a2d; --paper-2:#313135; --side:#232326;
-  --fg:#f2f2f7; --fg-2:#a3a3a8; --fg-3:#7c7c82;
-  --line:#3b3b3f; --line-2:#333337;
-  --pink:#0a84ff; --pink-2:#64aaff; --pink-soft:#1b2c45;
-  --ink:#9ec4e8; --dziennik:#d8d8dd;
+  --desk:#1d1813; --paper:#2a241d; --paper-2:#322b22; --side:#241e18;
+  --fg:#f4ece0; --fg-2:#b2a492; --fg-3:#8a7d6c;
+  --line:#3d3429; --line-2:#352d24;
+  --pink:#c9a173; --pink-2:#dfbd95; --pink-soft:#3a2f22;
+  --ink:#a8c4b4; --dziennik:#d6c7b2;
   color-scheme:dark;
 }}
 :root[data-skin="mac"][data-theme="dark"]{
-  --desk:#1c1c1e; --paper:#2a2a2d; --paper-2:#313135; --side:#232326;
-  --fg:#f2f2f7; --fg-2:#a3a3a8; --fg-3:#7c7c82;
-  --line:#3b3b3f; --line-2:#333337;
-  --pink:#0a84ff; --pink-2:#64aaff; --pink-soft:#1b2c45;
-  --ink:#9ec4e8; --dziennik:#d8d8dd;
+  --desk:#1d1813; --paper:#2a241d; --paper-2:#322b22; --side:#241e18;
+  --fg:#f4ece0; --fg-2:#b2a492; --fg-3:#8a7d6c;
+  --line:#3d3429; --line-2:#352d24;
+  --pink:#c9a173; --pink-2:#dfbd95; --pink-soft:#3a2f22;
+  --ink:#a8c4b4; --dziennik:#d6c7b2;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -629,8 +629,8 @@ const MONTHS = ["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca",
 const MONTHN = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień",
   "Wrzesień","Październik","Listopad","Grudzień"];
 const VIEWS = [["dzis","Dziś"],["tydzien","Tydzień"],["miesiac","Miesiąc"],
-  ["trackery","Trackery"],["cele","Cele"],["listy","Listy"],["legenda","Legenda"],
-  ["ustawienia","Ustawienia"]];
+  ["trackery","Trackery"],["cele","Cele"],["studia","Studia"],["listy","Listy"],
+  ["legenda","Legenda"],["ustawienia","Ustawienia"]];
 cfgZapamietajFabryczne();     // dopiero gdy wszystkie stałe fabryczne są zadeklarowane
 
 /* ---------- daty ---------- */
@@ -651,7 +651,7 @@ const longDate = s => {const d=parse(s);return DOW[dowIdx(s)]+" "+d.getDate()+" 
 /* ---------- stan ---------- */
 const S = {
   view:"dzis", date:key(new Date()), month:null, db:null, canWrite:null, mcp:null,
-  day:{}, week:{}, habits:{}, health:{}, goals:[], lists:[], mdays:{},
+  day:{}, week:{}, habits:{}, health:{}, goals:[], lists:[], mdays:{}, studia:null,
   cal:{ev:[],err:null,on:false}, subs:[], ready:false
 };
 S.month = S.date.slice(0,7);
@@ -696,6 +696,7 @@ function stanDo(path){
   if(col==="health") return (S.health||{})[id] || null;
   if(col==="goals")  return (S.goals||[]).find(x=>x.id===id) || null;
   if(col==="lists")  return (S.lists||[]).find(x=>x.id===id) || null;
+  if(col==="studia") return S.studia || null;
   return null;
 }
 function opisSciezki(path){
@@ -706,6 +707,7 @@ function opisSciezki(path){
   if(col==="health") return "samopoczucie";
   if(col==="goals")  return "cel";
   if(col==="lists")  return "lista";
+  if(col==="studia") return "studia";
   return col;
 }
 function migawka(path){
@@ -730,12 +732,14 @@ function przywrocStan(w){
     if(col==="weeks")  delete S.week[id];
     if(col==="habits") delete S.habits[id];
     if(col==="health") delete S.health[id];
+    if(col==="studia") S.studia = null;
     try{ S.db.doc(w.path).delete(); }catch(e){}
   }else{
     if(col==="days")   S.day[id]    = w.stan;
     if(col==="weeks")  S.week[id]   = w.stan;
     if(col==="habits") S.habits[id] = w.stan;
     if(col==="health") S.health[id] = w.stan;
+    if(col==="studia") S.studia = w.stan;
     save(w.path, w.stan);
   }
 }
@@ -1053,6 +1057,7 @@ function resub(){
   const hi=[m+"-31", addD(monday(d),6)].sort()[1];
   const on=(ref,fn)=>S.subs.push(ref.onSnapshot(fn, ()=>{}));
   on(S.db.doc("cfg/ui"), s=>{ cfgZastosuj(s.exists?s.data():null); render(); });
+  on(S.db.doc("studia/sem1"), s=>{ S.studia = s.exists ? s.data() : null; render(); });
   on(S.db.doc("days/"+d),    s=>{S.day[d]=s.exists?s.data():null; dodajKotwice(d); render()});
   on(S.db.doc("weeks/"+w),   s=>{S.week[w]=s.exists?s.data():null; render()});
   on(S.db.doc("habits/"+m),  s=>{S.habits[m]=s.exists?s.data():{}; render()});
@@ -2219,6 +2224,145 @@ function vTydzien(){
     "Notatki zostają przy tygodniu, więc w niedzielę widać je razem z przeglądem. "
     +"Zadanie, które ma notatkę, pokazuje ≡ w liście wyżej."));
 
+  /* --- propozycje: zadania wyliczone z terminów, studiów i podróży --- */
+  const secProp = sec("Do zrobienia w tym tygodniu");
+  {
+    const dzisiaj = key(new Date()), koniec = addD(mon,6);
+    const odrzucone = Array.isArray(W.odrzucone) ? W.odrzucone : [];
+    const juz = new Set();
+    wiersze.forEach(r=>juz.add(String(r.t.txt||"").toLowerCase().trim()));
+
+    const prop = [];
+    const dodaj = (klucz, txt, area, powod) => {
+      if(odrzucone.includes(klucz)) return;
+      if(juz.has(txt.toLowerCase().trim())) return;
+      prop.push({klucz, txt, area, powod});
+    };
+
+    /* studia: formy zaliczenia z terminem w tym tygodniu albo w ciągu trzech tygodni */
+    Object.keys(PRZEDM).forEach(kod=>elementyDla(kod).forEach(e=>{
+      if(e.done || !/^\d{4}-\d{2}-\d{2}$/.test(e.d||"")) return;
+      if(e.d < dzisiaj) return;
+      const ile = Math.round((parse(e.d)-parse(dzisiaj))/864e5);
+      if(ile > 21) return;
+      const wTym = e.d >= mon && e.d <= koniec;
+      dodaj("st:"+e.id,
+        (wTym ? "" : "Przygotować: ") + kod + " — " + e.forma
+          + (e.temat ? " (" + e.temat.split(";")[0].split("—")[0].trim() + ")" : ""),
+        "S", wTym ? "w tym tygodniu, " + longDate(e.d) : "za " + ile + " dni, " + longDate(e.d));
+    }));
+    /* studia: notatki po zjeździe, który wypada w tym tygodniu */
+    ZJAZDY.forEach(([d,bl])=>{
+      if(d < mon || d > koniec) return;
+      dodaj("zj:"+d, "Opracować notatki ze zjazdu " + parse(d).getDate()+"."+pad(parse(d).getMonth()+1)
+        + " — " + bl.map(b=>b[3]).join(", "), "S", "zjazd " + longDate(d));
+    });
+    /* terminy projektów z konfiguracji */
+    (TERMINY||[]).forEach(t=>{
+      if(!t.d || t.d < dzisiaj) return;
+      const ile = Math.round((parse(t.d)-parse(dzisiaj))/864e5);
+      if(ile > 14) return;
+      dodaj("tm:"+t.d+":"+t.txt, duza(t.txt), "T",
+        (t.d>=mon && t.d<=koniec ? "termin w tym tygodniu, " : "termin za "+ile+" dni, ") + longDate(t.d));
+    });
+    /* podróż zaczynająca się w ciągu dziesięciu dni */
+    (PODROZE||[]).forEach(w2=>{
+      if(!w2.od || w2.od < dzisiaj) return;
+      const ile = Math.round((parse(w2.od)-parse(dzisiaj))/864e5);
+      if(ile > 10) return;
+      dodaj("pd:"+w2.id, "Spakować się — " + duza(w2.txt||"wyjazd"), w2.area||"K",
+        "wyjazd od " + longDate(w2.od));
+    });
+    /* sprawy otwarte ze studiów */
+    sprawyList().filter(x=>!x.done).slice(0,3).forEach(x=>
+      dodaj("sp:"+x.id, x.txt, "S", "sprawa otwarta ze studiów"));
+
+    /* cele: krok tygodnia, o ile jest zdaniem, a nie skrótem w siatce celów */
+    const zdanie = t => { const v=(t||"").trim();
+      return v.length >= 8 && v !== "—" && !v.includes("·") && v.split(/\s+/).length >= 2; };
+    (S.goals||[]).slice(0,4).forEach(g=>{
+      const txt = (g.tydzien||"").trim() || (g.miesiac||"").trim();
+      if(!zdanie(txt)) return;
+      dodaj("cel:"+g.id, duza(txt), g.area||"T", "krok celu — "+duza(g.name||"cel"));
+    });
+
+    /* listy: po jednej nieodhaczonej pozycji; „kiedyś” i pakowanie zostają poza tygodniem */
+    (S.lists||[]).forEach(L=>{
+      const tyt = duza(L.title||"lista");
+      if(/kiedyś|moze|może|pakowan|prezent/i.test(tyt)) return;
+      const i = (L.items||[]).find(x=>!x.done);
+      if(i && zdanie(i.txt)) dodaj("lst:"+i.id, duza(i.txt), L.area||"O", "z listy „"+tyt+"”");
+    });
+
+    /* dom i pielęgnacja: czego w tym tygodniu nie było ani razu */
+    HOME.forEach(([k,label,grupa])=>{
+      if((grupa||"Dom") === "Zdrowie") return;          // leki i woda są w trackerze, nie w zadaniach
+      const bylo = days.some(ds=>(W.home[ds]||{})[k]);
+      if(bylo) return;
+      dodaj("dom:"+k, duza(label), (grupa||"Dom")==="Dom" ? "D" : "K",
+        "w tym tygodniu ani razu");
+    });
+
+    /* gabinet: dni z grafiku, dla których nie ma jeszcze żadnego zadania */
+    { const pracujace = days.filter(ds=>
+        (dayAny(ds).blocks||[]).some(b=>b.txt==="Gabinet"));
+      const bezZadan = pracujace.filter(ds=>!((dayAny(ds).tasks||[]).some(t=>t.area==="G")));
+      if(pracujace.length && bezZadan.length === pracujace.length)
+        dodaj("gab:karty", "Uzupełnić karty klientów po tygodniu", "G",
+          "grafik na " + pracujace.length + " dni, a ani jednego zadania gabinetu"); }
+
+    /* odpoczynek: tydzień bez jednego dnia wolnego albo odpoczynku */
+    { const typy = days.map(ds=>(S.mdays[ds]||S.day[ds]||{}).type||"");
+      if(!typy.some(t=>t==="pelny"||t==="odpoczynek"))
+        dodaj("odp:wolne", "Zostawić sobie wolny wieczór albo pół dnia", "O",
+          "żaden dzień tygodnia nie jest oznaczony jako wolny ani odpoczynek"); }
+
+    /* Julia: zajęcia z kalendarza, na które trzeba ją zawieźć */
+    { const jul = days.filter(ds=>calFor(ds).some(e=>/juli|szach|zaj[eę]ci/i.test(e.s||"")));
+      if(jul.length)
+        dodaj("jul:odwiezc", "Ustalić, kto odwozi Julię na zajęcia", "J",
+          jul.length + (jul.length===1 ? " dzień" : " dni") + " z zajęciami w kalendarzu"); }
+
+    if(!prop.length)
+      secProp.append(el("p",{class:"note"},
+        "Nic nowego do wzięcia — wszystko, co wynika z terminów, zjazdów i podróży, już jest na liście."));
+    prop.forEach(x=>{
+      const wybor = el("select",{style:"font-size:11px;padding:2px 3px;width:74px"});
+      wybor.append(el("option",{value:"pula"},"do puli"));
+      days.forEach(ds=>wybor.append(el("option",{value:ds},
+        DOW[dowIdx(ds)]+" "+parse(ds).getDate())));
+      const wez = ()=>{
+        const cel = wybor.value;
+        const z = {id:uid(), txt:duza(x.txt), st:"todo", area:x.area, minor:false};
+        if(cel === "pula") saveWeek(w,{pula:[...(weekDoc(w).pula||[]), z]});
+        else saveDayAny(cel, {tasks:[...(dayAny(cel).tasks||[]), z]});
+      };
+      secProp.append(el("div",{class:"row tight",style:"gap:4px;border-top:1px solid var(--line-2);padding:4px 0"},
+        areaDot(x.area),
+        el("span",{style:"flex:1 1 auto;min-width:0"},
+          el("span",{},x.txt), el("span",{class:"sub"}," · "+x.powod)),
+        wybor,
+        el("button",{class:"btn",style:"padding:2px 7px;font-size:11px",onclick:wez},"weź"),
+        el("button",{class:"ghost",title:"Nie w tym tygodniu",
+          onclick:()=>saveWeek(w,{odrzucone:[...odrzucone, x.klucz]})},"✕")));
+    });
+    if(odrzucone.length)
+      secProp.append(el("div",{class:"row"},
+        el("button",{class:"ghost",onclick:()=>saveWeek(w,{odrzucone:[]})},
+          "pokaż odrzucone ("+odrzucone.length+")")));
+    { const maja = new Set(prop.map(x=>x.area));
+      const brak = Object.keys(AREAS).filter(a=>!maja.has(a));
+      if(prop.length && brak.length)
+        secProp.append(el("p",{class:"note"},
+          "Bez propozycji w tym tygodniu: "
+          + brak.map(a=>AREAS[a].n).join(", ") + ".")); }
+    secProp.append(el("p",{class:"note"},
+      "Lista liczy się sama ze wszystkich obszarów: formy zaliczenia i zjazdy (studia), "+
+      "terminy projektów i kroki celów (twórczość), listy, mini-tracker domu i pielęgnacji, "+
+      "grafik gabinetu, podróże oraz brak dnia wolnego. "+
+      "„Weź” dopisuje zadanie do puli albo wprost do dnia; ✕ chowa je do końca tygodnia."));
+  }
+
   const grupyDomu = [];
   HOME.forEach(h=>{ const g=h[2]||"Dom"; if(!grupyDomu.includes(g)) grupyDomu.push(g); });
   const sekcjeDomu = grupyDomu.map(grupa=>{
@@ -2390,7 +2534,7 @@ function vTydzien(){
     "Dzień znika z listy, gdy oznaczysz go jako przepisany, i wraca, gdy go potem zmienisz — "
     +"wtedy z czerwoną adnotacją, żebyś wiedziała, że B6 jest nieaktualne."));
 
-  return {L:[dl,secGraf,secAla,secNot,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
+  return {L:[dl,secProp,secGraf,secAla,secNot,...sekcjeDomu,pp,rv], R:[miniKalendarz(S.date),eks,sekcjaCoDziala(days,"Co działało w tym tygodniu"),t3,q]};
 }
 
 /* ---------- Miesiąc ---------- */
@@ -2635,6 +2779,367 @@ function vCele(){
     S.db&&S.db.collection("goals").add({name:"Nowy cel",area:"T",ord:S.goals.length+1,
       kiedys:"",rok:"",kwartal:"",miesiac:"",tydzien:"",dzien:""})}},"Dodaj cel"));
   return {W:out};
+}
+
+/* ---------- Studia ---------- */
+/* Plan i obsada: Wirtualny Dziekanat i plan zjazdów uczelni, sprawdzone 12.10.2026.
+   Liczbę bloków liczymy z planu, a nie przepisujemy — po zmianie planu sama się poprawi. */
+const ZJAZDY = [
+  ["2026-10-03",[["I","08:00","10:15","FIZ"],["III","13:00","15:15","PAT"],["IV","15:30","18:30","ANG"]]],
+  ["2026-10-04",[["I","08:00","10:15","PRE"],["II","10:30","12:45","DEM"],["III","13:00","15:15","PRZ"]]],
+  ["2026-10-17",[["I","08:00","10:15","ANG"],["III","13:00","15:15","PRE"],["IV","15:30","18:30","PRZ"]]],
+  ["2026-10-18",[["I","08:00","10:15","PRE"],["II","10:30","12:45","ETY"]]],
+  ["2026-10-24",[["I","08:00","10:15","JAD"],["II","10:30","12:45","POR"],["III","13:00","15:15","PAT"],["IV","15:30","18:30","DEM"]]],
+  ["2026-10-25",[["I","08:00","10:15","PRZ"],["II","10:30","12:45","PAT"],["III","13:00","15:15","DEM"],["IV","15:30","18:30","NAD"]]],
+  ["2026-11-07",[["I","08:00","10:15","FIZ"],["II","10:30","12:45","POR"],["III","13:00","15:15","JAD"],["IV","15:30","18:30","JAK"]]],
+  ["2026-11-08",[["I","08:00","10:15","ETY"],["II","10:30","12:45","ANG"],["III","13:00","15:15","JAK"],["IV","15:30","18:30","DEM"]]],
+  ["2026-11-21",[["I","08:00","10:15","JAK"],["II","10:30","12:45","FIZ"],["III","13:00","15:15","ANG"],["IV","15:30","18:30","NAD"]]],
+  ["2026-11-22",[["I","08:00","10:15","ETY"],["II","10:30","12:45","JAK"],["III","13:00","15:15","PAT"],["IV","15:30","18:30","NAD"]]],
+  ["2026-12-05",[["I","08:00","10:15","NAD"],["II","10:30","12:45","FIZ"],["III","13:00","15:15","PAT"],["IV","15:30","18:30","PRE"]]],
+  ["2026-12-06",[["I","08:00","10:15","ANG"],["II","10:30","12:45","POR"],["III","13:00","15:15","PAT"],["IV","15:30","18:30","JAD"]]],
+  ["2026-12-19",[["I","08:00","10:15","ETY"],["II","10:30","12:45","POR"],["III","13:00","15:15","JAK"],["IV","15:30","18:30","JAD"]]],
+  ["2026-12-20",[["I","08:00","10:15","JAK"],["II","10:30","12:45","PRE"],["III","13:00","15:15","PRZ"],["IV","15:30","18:30","POR"]]],
+  ["2027-01-09",[["I","08:00","10:15","ANG"],["II","10:30","12:45","PRZ"],["III","13:00","15:15","FIZ"],["IV","15:30","18:30","NAD"]]],
+  ["2027-01-10",[["I","08:00","10:15","ANG"],["II","10:30","12:45","JAD"],["III","13:00","15:15","POR"],["IV","15:30","18:30","DEM"]]],
+  ["2027-01-16",[["I","08:00","10:15","PAT"],["II","10:30","12:45","POR"],["III","13:00","15:15","ANG"],["IV","15:30","18:30","JAD"]]],
+  ["2027-01-17",[["I","08:00","10:15","POR"],["II","10:30","12:45","FIZ"],["III","13:00","15:15","PAT"],["IV","15:30","18:30","PRZ"]]],
+  ["2027-01-30",[["I","08:00","10:15","PRE"],["II","10:30","12:45","FIZ"],["III","13:00","15:15","JAK"],["IV","15:30","18:30","PAT"]]],
+  ["2027-01-31",[["I","08:00","10:15","ETY"],["II","10:30","12:45","JAK"],["III","13:00","15:15","PAT"],["IV","15:30","18:30","NAD"]]]];
+const PRZEDM = {
+  FIZ:{n:"Fizjologia żywienia człowieka", kto:"dr Agnieszka Michalska", ects:4, egz:true,
+    zasady:["15 h wykładów + 15 h ćwiczeń; ostatnie dwie godziny to zaliczenie i test",
+      "Egzamin: 20 pytań jednokrotnego wyboru, 1 pkt za pytanie, próg 55–60% (11 albo 12 pkt)",
+      "Prezentacje z zajęć prowadząca wysyła starościnie — tam jest wiedza do zaliczenia",
+      "Przepisanie oceny: suplement na maila; sama fizjologia ogólna nie wystarczy"]},
+  POR:{n:"Poradnictwo i edukacja żywieniowo-dietetyczna", kto:"dr hab. Anna Kołłajtis-Dołowy", ects:4, egz:true,
+    zasady:["Ćwiczenia i egzamin zaliczane osobno, na osobnych arkuszach",
+      "Ćwiczenia: prezentacja w parach + aktywność w dyskusji; prezentację trzeba też odesłać",
+      "Egzamin pisemny, stacjonarnie w budynku uczelni — nie test; można zdawać przed sesją",
+      "Obecność obowiązkowa: najwyżej 20% nieobecności, czyli 2 z 8 spotkań",
+      "Wyjście w trakcie zajęć trzeba zgłosić; kamera włączona przy prezentacji"]},
+  JAK:{n:"Jakość i bezpieczeństwo żywności", kto:"dr Elżbieta Olczak", ects:4, egz:true,
+    zasady:["Pierwsze zajęcia 7.11 — zasad jeszcze nie znamy"]},
+  PAT:{n:"Patofizjologia kliniczna", kto:"dr Monika Litkowiec", ects:4, egz:true,
+    zasady:["Forma zaliczenia: prezentacja multimedialna, indywidualna, około 20 minut",
+      "Temat z listy prowadzącej albo własny; grupa sama układa rozpiskę i wysyła ją mailem",
+      "Terminy prezentacji: 6.12, potem 16 i 17.01; ostatnie zajęcia 31.01",
+      "Na jednych zajęciach mieści się 5–6 prezentacji",
+      "Obecność sprawdzana, wymagane około 60%"]},
+  ANG:{n:"Język angielski", kto:"mgr Grażyna Kołynicz", ects:2, egz:false,
+    zasady:["Podręcznik: English for Dietetics",
+      "Kto przerabiał ten podręcznik, może mieć ocenę przepisaną — zgłoszenie mailem grupowym"]},
+  DEM:{n:"Demografia i epidemiologia żywieniowa", kto:"mgr Ewa Neumann", ects:2, egz:false,
+    zasady:["Zaliczenie pisemne na platformie EduPortal, 30–35 minut, próg 60%",
+      "Ocena końcowa: 80% z zaliczenia + 20% praca własna i obecność",
+      "Można zaliczyć przed sesją — na ostatnich zajęciach albo tuż po",
+      "Poster w zespołach 2–3 osobowych, profilaktyka jednej choroby; tematy bez powtórzeń",
+      "Poster wysyła jedna osoba z zespołu, na maila służbowy, z nazwiskami w tytule",
+      "Jedna nieobecność usprawiedliwiona; każda kolejna do odrobienia pracą",
+      "Podręcznik: Epidemiologia od teorii do praktyki, PZWL"]},
+  NAD:{n:"Nadzór sanitarno-epidemiologiczny", kto:"mgr Karolina Łukaszewicz-Marszał", ects:2, egz:false,
+    zasady:["Pierwsze zajęcia 21.11 — zasad jeszcze nie znamy"]},
+  PRZ:{n:"Podstawy przedsiębiorczości z elementami prawa własności intelektualnej", kto:"dr Adam Żardecki", ects:2, egz:false,
+    zasady:["Dwa warunki zaliczenia: obecność i wygłoszona prezentacja (referat)",
+      "Prezentacja około 15 minut, na końcu bibliografia; oparta na przepisach i literaturze",
+      "Źródła internetowe tylko uzupełniająco",
+      "Jedna nieobecność dopuszczalna bez usprawiedliwienia",
+      "Uznanie z innej uczelni tylko z poziomu magisterskiego — licencjat nie wystarcza"]},
+  PRE:{n:"Preparaty i suplementy diety", kto:"dr Lidia Czyż", ects:2, egz:false,
+    zasady:["Egzamin: 20 pytań ułożonych z pytań kontrolnych na końcu konspektów",
+      "Konspekty i prezentacje prowadząca wysyła sama — wystarczy podać adres grupowy",
+      "Materiał tylko z zajęć i konspektów, bez dodatkowych podręczników",
+      "Skala ocen 3–5, z połówkami",
+      "Termin i forma (zdalnie czy stacjonarnie) do ustalenia z dziekanatem; ostatnie zajęcia 30.01"]},
+  JAD:{n:"Układanie jadłospisów metodami komputerowymi", kto:"mgr Ewa Neumann", ects:2, egz:false,
+    zasady:["Bez testu. Jedyna forma zaliczenia: 7-dniowy jadłospis dla pacjenta",
+      "Jadłospis robi się w trakcie semestru, w programie w wersji uczelnianej albo własnej",
+      "W wersji uczelnianej prowadząca widzi pracę na bieżąco i poprawia od razu",
+      "Brak literatury — materiał to zagadnienia omawiane na zajęciach"]},
+  ETY:{n:"Etyka zawodowa dietetyka", kto:"prof. zw. dr hab. Stanisław Urbański", ects:2, egz:false,
+    zasady:["Na nagraniu z 18.10 nie padły zasady zaliczenia — dopytać"]},
+  BHP:{n:"BHP i ergonomia", kto:"dr Andrzej Bieżuński", ects:0, egz:false, pozaZjazdami:true,
+    zasady:["Poza zjazdami, bez ECTS. Tryb zaliczenia do wyjaśnienia w dziekanacie"]},
+  BIB:{n:"Podstawowe szkolenie biblioteczne", kto:"mgr Natalia Konkolewska", ects:0, egz:false, pozaZjazdami:true,
+    zasady:["Poza zjazdami, bez ECTS. Tryb zaliczenia do wyjaśnienia w dziekanacie"]}
+};
+/* Formy zaliczenia — lista do wyboru przy każdym elemencie. Dopisujesz swoje w polu „inna forma”. */
+const FORMY = ["prezentacja","poster","referat","kolokwium","test","egzamin pisemny","egzamin ustny",
+  "projekt","esej","praca pisemna","jadłospis","opis przypadku","sprawozdanie","praca grupowa",
+  "ćwiczenia praktyczne","aktywność i obecność","zaliczenie ćwiczeń","zaliczenie wykładu"];
+/* Elementy znane z zajęć — wchodzą jako wartość początkowa, można je poprawić i usunąć. */
+const ELEMENTY_FABRYCZNE = {
+  FIZ:[{id:"f-fiz-zal", forma:"zaliczenie ćwiczeń", temat:"4 pytania opisowe",
+        d:"2027-01-09", g:"15:15"},
+       {id:"f-fiz-egz", forma:"egzamin pisemny", temat:"test, 20 pytań jednokrotnego wyboru; próg 11–12 pkt",
+        d:"2027-01-30", g:""}],
+  POR:[{id:"f-por-pre", forma:"prezentacja",
+        temat:"w parach: zachowania żywieniowe wybranej grupy chorych + wywiady z 2 osobami", d:"", g:""},
+       {id:"f-por-egz", forma:"egzamin pisemny",
+        temat:"stacjonarnie w uczelni; możliwy przed sesją", d:"", g:""}],
+  PAT:[{id:"f-pat-pre", forma:"prezentacja",
+        temat:"Reumatoidalne zapalenie stawów · indywidualna, ok. 20 min",
+        d:"2026-12-06", g:"", done:false}],
+  DEM:[{id:"f-dem-pos", forma:"poster",
+        temat:"Zaburzenia glikemii — hipoglikemia, insulinooporność i cukrzyca typu 2; " +
+              "wysłany mailem",
+        d:"2026-10-24", g:"", done:true},
+       {id:"f-dem-omo", forma:"prezentacja",
+        temat:"omówienie posteru na zajęciach — obie autorki znają całość",
+        d:"2026-11-08", g:"15:30", done:false},
+       {id:"f-dem-zal", forma:"zaliczenie ćwiczeń",
+        temat:"pisemne na EduPortal, 30–35 min, próg 60%", d:"", g:""}],
+  PRZ:[{id:"f-prz-pre", forma:"prezentacja",
+        temat:"Opodatkowanie działalności gospodarczej w Polsce",
+        d:"2026-10-25", g:"", done:true}],
+  PRE:[{id:"f-pre-egz", forma:"egzamin pisemny",
+        temat:"20 pytań z konspektów; termin i forma do ustalenia z dziekanatem", d:"", g:""}],
+  JAD:[{id:"f-jad-jad", forma:"jadłospis",
+        temat:"7-dniowy jadłospis dla pacjenta, w programie uczelnianym", d:"", g:""}],
+  ANG:[{id:"f-ang-zal", forma:"zaliczenie ćwiczeń",
+        temat:"English for Dietetics; możliwe przepisanie oceny", d:"", g:""}]
+};
+const SPRAWY_FABRYCZNE = [
+  "Preparaty: ustalić z dziekanatem termin i formę egzaminu (zdalnie czy stacjonarnie)",
+  "Preparaty: podać prowadzącej adres grupowy, żeby przysłała konspekty",
+  "Poradnictwo: dobrać się w parę i wybrać grupę chorych do prezentacji",
+  "Poradnictwo: ustalić, czy egzamin zdajemy przed sesją",
+  "Jadłospisy: uzyskać dostęp do programu w wersji uczelnianej",
+  "Patofizjologia: potwierdzić swój termin 6.12 w rozpisce grupy",
+  "Etyka: dopytać o formę zaliczenia — na nagraniu z 18.10 nie padła",
+  "Jakość żywności i Nadzór: spisać zasady na pierwszych zajęciach (7.11 i 21.11)",
+  "Tryb zaliczenia BHP i szkolenia bibliotecznego — nikt o nich nie przypomni",
+  "Fizjologia: sylabus przewiduje 3 kolokwia, prowadząca zapowiedziała 1 — dopytać",
+  "Przepisanie oceny: suplement na maila prowadzącego, temat „Ocena do przepisania”"
+];
+const studiaDoc = () => ({elementy:null, notatki:{}, sprawy:null, uwagi:"", ...(S.studia||{})});
+const saveStudia = p => { const d={...studiaDoc(), ...p};
+  zapamietajCofke("studia/sem1", S.studia || null);
+  S.studia = d; save("studia/sem1", d); render(); };
+const blokowDla = kod => ZJAZDY.reduce((n,[,bl])=>n+bl.filter(b=>b[3]===kod).length, 0);
+/* Elementy zaliczenia przedmiotu: dopóki nic nie zmieniłaś, obowiązują fabryczne. */
+const elementyDla = kod => { const e = studiaDoc().elementy;
+  return (e && e[kod]) ? e[kod] : (ELEMENTY_FABRYCZNE[kod] || []); };
+/* Formy zaliczenia wypadające danego dnia — {kod: [element, …]}. */
+const formyDnia = d => { const out = {};
+  Object.keys(PRZEDM).forEach(k => { const e = elementyDla(k).filter(x => x.d === d);
+    if(e.length) out[k] = e; });
+  return out; };
+const zapiszElementy = (kod, lista) => { const dok = studiaDoc();
+  const baza = dok.elementy || Object.fromEntries(Object.keys(PRZEDM)
+    .map(k => [k, (ELEMENTY_FABRYCZNE[k] || []).slice()]));
+  saveStudia({elementy:{...baza, [kod]:lista}}); };
+const sprawyList = () => { const s=studiaDoc().sprawy;
+  return s || SPRAWY_FABRYCZNE.map((t,i)=>({id:"f"+i, txt:t, done:false})); };
+
+function vStudia(){
+  const dzis = key(new Date());
+  const przyszle = ZJAZDY.filter(([d])=>d>=dzis), minione = ZJAZDY.filter(([d])=>d<dzis);
+  const dok = studiaDoc();
+
+  /* --- najbliższy zjazd: oba dni weekendu --- */
+  const c1 = sec("Najbliższy zjazd");
+  if(!przyszle.length){
+    c1.append(el("p",{class:"note"},"Plan zjazdów semestru się skończył. Zostaje sesja i to, co w sprawach otwartych."));
+  }else{
+    const dni = [przyszle[0]];
+    for(let i=1; i<przyszle.length; i++){
+      if(Math.round((parse(przyszle[i][0])-parse(dni[dni.length-1][0]))/864e5) === 1) dni.push(przyszle[i]);
+      else break;
+    }
+    const ile = Math.round((parse(dni[0][0])-parse(dzis))/864e5);
+    c1.append(el("div",{class:"row tight"},
+      el("b",{style:"font-family:var(--disp);font-size:16px"},
+        dni.length>1 ? (parse(dni[0][0]).getDate()+"–"+parse(dni[dni.length-1][0]).getDate()+" "
+                        +MONTHS[parse(dni[dni.length-1][0]).getMonth()])
+                     : longDate(dni[0][0])),
+      el("span",{class:"sub"}, ile===0 ? "zaczyna się dziś" : ile===1 ? "od jutra" : "za "+ile+" dni"),
+      el("span",{class:"spacer"}),
+      el("span",{class:"sub"}, dni.reduce((n,[,bl])=>n+bl.length,0)+" bloków")));
+    dni.forEach(([d,bloki])=>{
+      c1.append(el("div",{class:"row tight",style:"margin-top:6px;border-top:1px solid var(--line-2);padding-top:5px"},
+        el("b",{},longDate(d)),
+        el("span",{class:"spacer"}),
+        el("button",{class:"ghost",title:"Otwórz ten dzień w dniówce",
+          onclick:()=>{S.date=d;S.month=d.slice(0,7);S.view="dzis";resub();render()}},"otwórz dzień")));
+      const t=el("table",{class:"tb"}), fd = formyDnia(d);
+      bloki.forEach(([bl,od,doo,kod])=>{
+        const e = fd[kod];
+        t.append(el("tr",{style: e ? "background:var(--pink-soft)" : ""},
+          el("td",{style:"text-align:left;padding:3px 4px;width:26px;color:var(--fg-3)"},bl),
+          el("td",{style:"text-align:left;padding:3px 4px;width:88px"
+            +(e?";font-weight:600;color:var(--fg)":"")},od+"–"+doo),
+          el("td",{style:"text-align:left;padding:3px 4px;font-weight:600;width:34px;color:"
+            +(e?"var(--pink-2)":"var(--s)")},kod),
+          el("td",{style:"text-align:left;padding:3px 4px"+(e?";font-weight:600":"")},
+            PRZEDM[kod].n,
+            e ? el("span",{style:"color:var(--pink-2)"}, " · "+e.map(x=>x.forma).join(", ")) : null)));
+      });
+      c1.append(t);
+      Object.entries(fd).forEach(([kod,e])=>e.forEach(x=>c1.append(
+        el("p",{class:"note",style:"margin:2px 0 0;color:var(--pink-2)"},
+          "● "+kod+" — "+x.forma+(x.temat ? ": "+x.temat.split(";")[0] : "")))));
+    });
+  }
+
+  /* --- plan zjazdów --- */
+  const c2 = sec("Plan zjazdów · semestr 1");
+  const tz = el("table",{class:"tb"});
+  ZJAZDY.forEach(([d,bloki])=>{
+    const bylo = d < dzis, zrobione = !!(dok.notatki||{})[d];
+    tz.append(el("tr",{style: bylo ? "opacity:.6" : ""},
+      el("td",{style:"text-align:left;padding:3px 4px;width:86px"},
+        el("button",{class:"ghost",style:"padding:0;white-space:nowrap",title:"Otwórz ten dzień",
+          onclick:()=>{S.date=d;S.month=d.slice(0,7);S.view="dzis";resub();render()}},
+          DOW[dowIdx(d)]+" "+parse(d).getDate()+"."+pad(parse(d).getMonth()+1))),
+      el("td",{style:"text-align:left;padding:3px 4px"},
+        ...bloki.map((b,i)=>{ const m = !!formyDnia(d)[b[3]];
+          return el("span",{style: m ? "color:var(--pink-2);font-weight:700" : ""},
+            (i ? " · " : "") + b[3]); })),
+      el("td",{style:"width:92px;padding:3px 4px"},
+        el("button",{class:"mark",title:"Notatki z tego zjazdu zrobione",
+          style:"color:"+(zrobione?"var(--s)":"var(--fg-3)"),
+          onclick:()=>saveStudia({notatki:{...(dok.notatki||{}), [d]: !zrobione}})},
+          zrobione ? "✓ notatki" : "notatki"))));
+  });
+  c2.append(tz, el("p",{class:"note"},
+    "Skróty rozwija tabela przedmiotów. Kliknięcie w datę otwiera ten dzień w dniówce, "+
+    "„notatki” zaznaczasz, kiedy opracujesz materiał ze zjazdu."));
+
+  /* --- przedmioty i formy zaliczenia --- */
+  const c3 = sec("Przedmioty i formy zaliczenia");
+  const dzisD = dzis;
+  Object.entries(PRZEDM).forEach(([kod,p])=>{
+    const lista = elementyDla(kod), bl = blokowDla(kod);
+    const blok = el("div",{style:"border-top:1px solid var(--line-2);padding:6px 0"});
+    blok.append(el("div",{class:"row tight",style:"gap:6px;align-items:baseline"},
+      el("b",{style:"color:var(--s)"},kod),
+      el("span",{style:"flex:1 1 auto;min-width:0"},p.n),
+      el("span",{class:"sub",title:"Punkty ECTS"}, (p.ects||"—")+" ECTS"),
+      el("span",{class:"sub",title:"Bloków w planie zjazdów"}, bl ? bl+" bl." : "poza zjazdami")));
+    blok.append(el("p",{class:"note",style:"margin:1px 0 4px"},
+      p.kto + (p.egz ? " · wykład z egzaminem + ćwiczenia na ocenę"
+                     : p.pozaZjazdami ? " · do zaliczenia samodzielnie, poza zjazdami"
+                                      : " · ćwiczenia na ocenę")));
+    (p.zasady||[]).forEach(z=>blok.append(
+      el("p",{class:"note",style:"margin:0 0 1px 10px"}, "— "+z)));
+    const zmien = (id,pole,v)=>zapiszElementy(kod, lista.map(x=>x.id===id?{...x,[pole]:v}:x));
+    lista.forEach(e=>{
+      const sel = el("select",{style:"font-size:11px;padding:2px 3px;width:124px"});
+      const formy = FORMY.includes(e.forma) ? FORMY : [e.forma, ...FORMY];
+      formy.forEach(f=>sel.append(el("option",{value:f, selected:f===e.forma?true:false},f)));
+      sel.addEventListener("change",()=>zmien(e.id,"forma",sel.value));
+      const temat = el("input",{type:"text",value:e.temat||"",placeholder:"temat albo zakres",
+        style:"font-size:11px;padding:2px 4px;flex:1 1 130px;min-width:0"});
+      temat.addEventListener("change",()=>zmien(e.id,"temat",temat.value.trim()));
+      const data = el("input",{type:"text",value:e.d||"",placeholder:"RRRR-MM-DD",
+        style:"font-size:11px;padding:2px 4px;width:92px"});
+      data.addEventListener("change",()=>zmien(e.id,"d",data.value.trim()));
+      const godz = el("input",{type:"text",value:e.g||"",placeholder:"godz.",
+        style:"font-size:11px;padding:2px 4px;width:50px"});
+      godz.addEventListener("change",()=>zmien(e.id,"g",naGodzine(godz.value,"") || godz.value.trim()));
+      const ocena = el("input",{type:"text",value:e.ocena||"",placeholder:"ocena",
+        style:"font-size:11px;padding:2px 4px;width:50px"});
+      ocena.addEventListener("change",()=>zmien(e.id,"ocena",ocena.value.trim()));
+      blok.append(el("div",{class:"row tight",style:"gap:3px;margin-bottom:3px;align-items:center"},
+        el("button",{class:"mark",title:e.done?"Zaliczone":"Jeszcze przede mną",
+          style:"color:"+(e.done?"var(--s)":"var(--fg-3)"),
+          onclick:()=>zmien(e.id,"done",!e.done)}, e.done?"✓":"•"),
+        sel, temat, data, godz, ocena,
+        el("button",{class:"ghost",title:"Usuń tę formę",
+          onclick:()=>zapiszElementy(kod, lista.filter(x=>x.id!==e.id))},"✕")));
+    });
+    blok.append(el("div",{class:"row tight",style:"gap:4px"},
+      el("button",{class:"ghost",onclick:()=>zapiszElementy(kod,
+        [...lista, {id:uid(), forma:"prezentacja", temat:"", d:"", g:"", ocena:"", done:false}])},
+        "+ forma zaliczenia")));
+    c3.append(blok);
+  });
+  const ects = Object.values(PRZEDM).reduce((n,p)=>n+p.ects,0);
+  c3.append(el("p",{class:"note",style:"font-weight:600;color:var(--fg-2)"},
+    "Zasada: kiedy prowadzący nie rozdziela wykładu od ćwiczeń, obowiązuje to, co mówi prowadzący, "+
+    "nie sylabus. Zasady poniżej są spisane z nagrań zajęć."));
+  c3.append(el("p",{class:"note"},
+    "Przy każdym przedmiocie dokładasz tyle form, ile ich jest: prezentacja, poster, kolokwium, "+
+    "projekt, jadłospis, egzamin. Kratka po lewej oznacza zaliczone. Razem "+ects+" ECTS. "+
+    "Formy i zasady są wyciągnięte z nagrań zjazdów 3–4.10, 17–18.10 i 24–25.10. "+
+    "Brakuje tylko jakości żywności, nadzoru i etyki — tam zasady jeszcze nie padły."));
+
+  /* --- sesja i terminy form --- */
+  const c4 = sec("Terminy — wszystkie formy");
+  const lista = [];
+  Object.keys(PRZEDM).forEach(kod=>elementyDla(kod).forEach(e=>lista.push({...e, kod})));
+  const zData = lista.filter(e=>/^\d{4}-\d{2}-\d{2}$/.test(e.d||""));
+  const bezDaty = lista.filter(e=>!/^\d{4}-\d{2}-\d{2}$/.test(e.d||""));
+  zData.sort((a,b)=>a.d.localeCompare(b.d));
+  if(!lista.length) c4.append(el("p",{class:"note"},"Żadna forma nie jest jeszcze wpisana."));
+  zData.forEach(e=>{
+    const ile = Math.round((parse(e.d)-parse(dzisD))/864e5);
+    c4.append(el("div",{class:"row tight"+(e.done?" done":""),
+        style:"border-top:1px solid var(--line-2);padding:4px 0;gap:6px"},
+      el("b",{style:"width:34px;color:var(--s)"},e.kod),
+      el("span",{style:"width:116px"}, longDate(e.d)+(e.g?" "+e.g:"")),
+      el("span",{style:"flex:1 1 auto;min-width:0"},
+        el("span",{},e.forma), e.temat ? el("span",{class:"sub"}," — "+e.temat) : null),
+      e.ocena ? el("b",{title:"Ocena"},e.ocena) : null,
+      el("span",{class:"sub",style:"white-space:nowrap"},
+        e.done ? "zaliczone" : ile<0 ? "było" : ile===0 ? "dziś" : "za "+ile+" dni")));
+  });
+  if(bezDaty.length){
+    c4.append(el("p",{class:"note",style:"margin-top:6px"},"Bez terminu:"));
+    bezDaty.forEach(e=>c4.append(el("div",{class:"row tight",style:"gap:6px;padding:2px 0"},
+      el("b",{style:"width:34px;color:var(--s)"},e.kod),
+      el("span",{},e.forma + (e.temat ? " — "+e.temat : "")))));
+  }
+
+  /* --- sprawy otwarte --- */
+  const c5 = sec("Sprawy otwarte");
+  const sp = sprawyList();
+  const ul = el("div",{class:"tasks"});
+  sp.forEach(it=>{
+    const i=el("input",{type:"text",value:it.txt});
+    i.addEventListener("change",()=>saveStudia({sprawy:sp.map(x=>x.id===it.id?{...x,txt:i.value}:x)}));
+    ul.append(el("div",{class:"task"+(it.done?" done":"")},
+      el("button",{class:"mark",style:"color:var(--s)",
+        onclick:()=>saveStudia({sprawy:sp.map(x=>x.id===it.id?{...x,done:!x.done}:x)})}, it.done?"✓":"•"),
+      i,
+      el("button",{class:"ghost",title:"Usuń",
+        onclick:()=>saveStudia({sprawy:sp.filter(x=>x.id!==it.id)})},"✕")));
+  });
+  const ni=el("input",{type:"text",placeholder:"Nowa sprawa do wyjaśnienia…"});
+  const dodaj=()=>{const v=ni.value.trim(); if(!v) return;
+    saveStudia({sprawy:[...sp,{id:uid(),txt:duza(v),done:false}]}); ni.value="";};
+  ni.addEventListener("keydown",e=>{ if(e.key==="Enter") dodaj(); });
+  c5.append(ul, el("div",{class:"row"}, ni, el("button",{class:"btn",onclick:dodaj},"Dodaj")));
+
+  /* --- postęp i źródła --- */
+  const c6 = sec("Gdzie jestem");
+  const bl = ZJAZDY.reduce((n,[,b])=>n+b.length,0);
+  const blMin = minione.reduce((n,[,b])=>n+b.length,0);
+  const notZ = ZJAZDY.filter(([d])=>(dok.notatki||{})[d]).length;
+  const wszF = lista.length, zrobF = lista.filter(e=>e.done).length;
+  const bezT = lista.filter(e=>!/^\d{4}-\d{2}-\d{2}$/.test(e.d||"")).length;
+  c6.append(el("table",{class:"tb"},
+    el("tr",{},el("td",{style:"text-align:left;padding:3px 4px"},"Zjazdowe dni"),
+      el("td",{style:"text-align:right;padding:3px 4px"}, minione.length+" z "+ZJAZDY.length)),
+    el("tr",{},el("td",{style:"text-align:left;padding:3px 4px"},"Bloki zajęć"),
+      el("td",{style:"text-align:right;padding:3px 4px"}, blMin+" z "+bl)),
+    el("tr",{},el("td",{style:"text-align:left;padding:3px 4px"},"Zjazdy z opracowanymi notatkami"),
+      el("td",{style:"text-align:right;padding:3px 4px"}, notZ+" z "+ZJAZDY.length)),
+    el("tr",{},el("td",{style:"text-align:left;padding:3px 4px"},"Formy zaliczenia zaliczone"),
+      el("td",{style:"text-align:right;padding:3px 4px"}, zrobF+" z "+wszF)),
+    el("tr",{},el("td",{style:"text-align:left;padding:3px 4px"},"Formy bez wpisanego terminu"),
+      el("td",{style:"text-align:right;padding:3px 4px"}, String(bezT))),
+    el("tr",{},el("td",{style:"text-align:left;padding:3px 4px"},"Punkty ECTS w semestrze"),
+      el("td",{style:"text-align:right;padding:3px 4px"}, String(ects)))));
+  const ta=el("textarea",{rows:3,placeholder:"Uwagi do semestru — co powtórzyć, czego szukać, kogo dopytać"});
+  ta.value = dok.uwagi||"";
+  ta.addEventListener("change",()=>saveStudia({uwagi:ta.value}));
+  c6.append(el("label",{class:"fld"},"Uwagi", ta));
+  c6.append(el("p",{class:"note"},
+    "Plan zjazdów i obsada pochodzą z planu uczelni i Wirtualnego Dziekanatu, sprawdzonych 12.10.2026. "+
+    "Pliki źródłowe i notatki z zajęć są w iCloud, w folderze DIETETYKA — planer trzyma tylko to, co planujesz i odhaczasz."));
+
+  return {L:[c1,c2,c6], R:[c3,c4,c5]};
 }
 
 /* ---------- Listy ---------- */
@@ -3376,7 +3881,7 @@ function buildBar(){
       el("span",{class:"sub"},String(y)),el("span",{class:"spacer"}),
       B("‹",()=>shift(-1),"Poprzedni miesiąc"),B("›",()=>shift(1),"Następny miesiąc"));
   }else{
-    bar.append(el("h2",{},{cele:"Cele",listy:"Listy",legenda:"Legenda",
+    bar.append(el("h2",{},{cele:"Cele",studia:"Studia",listy:"Listy",legenda:"Legenda",
       ustawienia:"Ustawienia"}[S.view]||"Planer"),
       el("span",{class:"spacer"}));
   }
@@ -3423,7 +3928,7 @@ function render(){
   if(!S.ready){ v.append(sec("Planer",el("p",{class:"note"},"Wczytywanie…"))); return; }
   if(S.canWrite===false) v.append(el("p",{class:"err"},"Tryb tylko do odczytu — zmiany nie zapiszą się."));
   const r=({dzis:vDzis,tydzien:vTydzien,miesiac:vMiesiac,trackery:vTrackery,
-    cele:vCele,listy:vListy,legenda:vLegenda,ustawienia:vUstawienia}[S.view]||vDzis)();
+    cele:vCele,studia:vStudia,listy:vListy,legenda:vLegenda,ustawienia:vUstawienia}[S.view]||vDzis)();
   if(r.W){ v.append(...r.W); requestAnimationFrame(()=>{ grow(); dopasujPasek(); }); return; }
   v.append(el("div",{class:"cols"+(r.even?" even":"")},
     el("div",{class:"colbox"},...r.L), el("div",{class:"colbox"},...r.R)));
@@ -3460,7 +3965,7 @@ async function snapLoad(){
     return true;
   }catch(e){ return false; }
 }
-const VER = "20261102-115955";
+const VER = "20261102-132124";
 async function checkVer(){            // GitHub cachuje stronę 10 min — sama pilnuję aktualności
   try{
     const r = await fetch("wersja.txt?t="+Date.now(), {cache:"no-store"});
@@ -3756,7 +4261,7 @@ function unlockScreen(msg){
 
 /* ---------- start ---------- */
 const DATA_FILES = ["data/goals.json","data/lists.json","data/weeks.json",
-  "data/habits.json","data/health.json","data/cfg.json"];
+  "data/habits.json","data/health.json","data/cfg.json","data/studia.json"];
 async function boot(fromSetup){
   const month = S.month;
   const files = DATA_FILES.concat(["data/days-"+month+".json"]);
